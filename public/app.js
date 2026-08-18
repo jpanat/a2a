@@ -174,7 +174,7 @@ function outcomeBadge(session) {
 }
 
 // ---------------- Router ----------------
-const routes = { "end-user": renderEndUser, compare: renderCompare, admin: renderAdmin };
+const routes = { "end-user": renderEndUser, compare: renderCompare, lab: renderLab, admin: renderAdmin };
 
 function currentRoute() {
   const hash = location.hash.replace(/^#\//, "");
@@ -402,6 +402,341 @@ function compareColumn(cls, title, session) {
         <div class="compare-stat"><div class="val">${session.transcript.length}</div><div class="lbl">Messages exchanged</div></div>
       </div>
       ${renderTranscript(session.transcript)}
+    </div>
+  `;
+}
+
+// ================= CONFLICT LAB =================
+// Lets you build an arbitrary scenario - any calendars, any ask, any trust
+// setup - and run it through the exact same runWithoutIoc/runWithIoc engine
+// functions used by the Compare view. Nothing here is scripted: whatever you
+// enter is what the engine reasons over.
+const WEBEX_STATUS_OPTIONS = ["free", "tentative-hold", "busy"];
+const COPILOT_STATUS_OPTIONS = ["free", "focus-time", "busy"];
+const DAY_OPTIONS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const HOME_ORG_OPTIONS = [
+  { id: "northwind", name: "Northwind Corp" },
+  { id: "cisco-outshift", name: "Outshift by Cisco" },
+];
+
+let labState = { presets: [], orgs: [], draft: null, result: null, error: null };
+
+function defaultLabDraft() {
+  return {
+    title: "My test scenario",
+    userStory: "Testing a specific conflict I want to see the engine handle.",
+    homeOrgId: "cisco-outshift",
+    isIntraOrg: false,
+    partnerOrgId: "fenwick",
+    statedWindows: [{ day: "Tue", start: "14:00", end: "17:00", label: "Tue afternoon" }],
+    baselineAssumedDurationMinutes: 60,
+    simulatedNowOffsetHours: 240,
+    intent: { goal: "Test sync", urgency: "medium", durationMinutes: 30, requiredAttendees: "Home Person, Partner Person" },
+    homeAgent: { personName: "Home Person", priorityTier: 3, minNoticeHours: 4, calendar: [] },
+    partnerAgent: { personName: "Partner Person", priorityTier: 3, minNoticeHours: 24, calendar: [] },
+  };
+}
+
+function presetToDraft(s) {
+  return {
+    title: s.title,
+    userStory: s.userStory,
+    homeOrgId: s.homeOrgId,
+    isIntraOrg: !!s.isIntraOrg,
+    partnerOrgId: s.isIntraOrg ? labState.orgs[0]?.id ?? "fenwick" : s.partnerOrgId,
+    statedWindows: s.statedWindows.map((w) => ({ ...w })),
+    baselineAssumedDurationMinutes: s.baselineAssumedDurationMinutes ?? 60,
+    simulatedNowOffsetHours: s.simulatedNowOffsetHours ?? 240,
+    intent: {
+      goal: s.intent.goal,
+      urgency: s.intent.urgency,
+      durationMinutes: s.intent.durationMinutes,
+      requiredAttendees: s.intent.requiredAttendees.join(", "),
+    },
+    homeAgent: {
+      personName: s.homeAgent.personName,
+      priorityTier: s.homeAgent.priorityTier,
+      minNoticeHours: s.homeAgent.notice.minNoticeHours,
+      calendar: s.homeAgent.calendar.map((b) => ({ ...b })),
+    },
+    partnerAgent: {
+      personName: s.partnerAgent.personName,
+      priorityTier: s.partnerAgent.priorityTier,
+      minNoticeHours: s.partnerAgent.notice.minNoticeHours,
+      calendar: s.partnerAgent.calendar.map((b) => ({ ...b })),
+    },
+  };
+}
+
+function daySelect(selected) {
+  return `<select data-field="day">${DAY_OPTIONS.map((d) => `<option value="${d}" ${d === selected ? "selected" : ""}>${d}</option>`).join("")}</select>`;
+}
+function statusSelect(selected, options) {
+  return `<select data-field="status">${options.map((s) => `<option value="${s}" ${s === selected ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+}
+function windowRow(w, i) {
+  return `<tr>
+    <td>${daySelect(w.day)}</td>
+    <td><input type="time" data-field="start" value="${w.start}"/></td>
+    <td><input type="time" data-field="end" value="${w.end}"/></td>
+    <td><input type="text" data-field="label" value="${esc(w.label)}"/></td>
+    <td><button class="small ghost" data-remove="windows" data-idx="${i}">✕</button></td>
+  </tr>`;
+}
+function calendarRow(who, b, i, statusOptions) {
+  return `<tr>
+    <td>${daySelect(b.day)}</td>
+    <td><input type="time" data-field="start" value="${b.start}"/></td>
+    <td><input type="time" data-field="end" value="${b.end}"/></td>
+    <td>${statusSelect(b.status, statusOptions)}</td>
+    <td><input type="text" data-field="label" value="${esc(b.label)}"/></td>
+    <td><button class="small ghost" data-remove="${who}-cal" data-idx="${i}">✕</button></td>
+  </tr>`;
+}
+function readTableRows(tableId) {
+  const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+  return [...rows].map((tr) => {
+    const get = (f) => tr.querySelector(`[data-field="${f}"]`)?.value ?? "";
+    return { day: get("day"), start: get("start"), end: get("end"), status: get("status"), label: get("label") };
+  });
+}
+
+async function renderLab() {
+  if (!labState.presets.length) {
+    labState.presets = await apiGet("/scenarios");
+    labState.orgs = await apiGet("/orgs");
+  }
+  if (!labState.draft) labState.draft = defaultLabDraft();
+  const d = labState.draft;
+
+  app.innerHTML = `
+    <h1>Conflict Lab</h1>
+    <p class="subtitle">Build your own calendars and ask, then run it through the same negotiation engine used everywhere else in this app - no scripted outcomes, just live reasoning over whatever you enter below.</p>
+
+    <div class="panel">
+      <label>Start from a preset
+        <select id="preset-picker">
+          <option value="">- blank scenario -</option>
+          ${labState.presets.map((p) => `<option value="${p.id}">${esc(p.title)}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+
+    <div class="panel lab-form">
+      <div class="lab-grid-2">
+        <label>Title<input type="text" id="f-title" value="${esc(d.title)}" /></label>
+        <label>Home org
+          <select id="f-homeOrg">
+            ${HOME_ORG_OPTIONS.map((o) => `<option value="${o.id}" ${o.id === d.homeOrgId ? "selected" : ""}>${esc(o.name)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <label>User story - why this negotiation matters<input type="text" id="f-userStory" value="${esc(d.userStory)}" /></label>
+
+      <label class="lab-checkbox"><input type="checkbox" id="f-intraOrg" ${d.isIntraOrg ? "checked" : ""}/> Same org on both sides (intra-org - skips the trust check, same vocabulary)</label>
+
+      <div id="f-partnerOrgWrap" ${d.isIntraOrg ? 'style="display:none"' : ""}>
+        <label>Partner org
+          <select id="f-partnerOrg">
+            ${labState.orgs.map((o) => `<option value="${o.id}" ${o.id === d.partnerOrgId ? "selected" : ""}>${esc(o.name)} (${o.trustStatus === "trusted" ? "trusted" : "pending review"})</option>`).join("")}
+          </select>
+        </label>
+      </div>
+
+      <h2>The ask (shared intent)</h2>
+      <div class="lab-grid-3">
+        <label>Goal<input type="text" id="f-goal" value="${esc(d.intent.goal)}" /></label>
+        <label>Urgency
+          <select id="f-urgency">
+            ${["low", "medium", "high"].map((u) => `<option value="${u}" ${u === d.intent.urgency ? "selected" : ""}>${u}</option>`).join("")}
+          </select>
+        </label>
+        <label>True duration (min)<input type="number" id="f-duration" min="5" max="480" value="${d.intent.durationMinutes}" /></label>
+      </div>
+      <div class="lab-grid-3">
+        <label>Attendees (comma-separated)<input type="text" id="f-attendees" value="${esc(d.intent.requiredAttendees)}" /></label>
+        <label>Baseline's naive default duration (min)<input type="number" id="f-baselineDuration" min="5" max="480" value="${d.baselineAssumedDurationMinutes}" /></label>
+        <label>Simulated hours until the earliest window<input type="number" id="f-nowOffset" min="0" max="2000" value="${d.simulatedNowOffsetHours}" /></label>
+      </div>
+
+      <h2>Stated windows <button class="small" id="add-window">+ add window</button></h2>
+      <table class="lab-table" id="windows-table">
+        <thead><tr><th>Day</th><th>Start</th><th>End</th><th>Label</th><th></th></tr></thead>
+        <tbody>${d.statedWindows.map((w, i) => windowRow(w, i)).join("")}</tbody>
+      </table>
+
+      <div class="lab-grid-2">
+        <div>
+          <h2>Home agent <span class="topo-agent-kind">(Webex)</span></h2>
+          <div class="lab-grid-2">
+            <label>Name<input type="text" id="f-home-name" value="${esc(d.homeAgent.personName)}" /></label>
+            <label>Notice needed (hrs)<input type="number" id="f-home-notice" min="0" max="240" value="${d.homeAgent.minNoticeHours}" /></label>
+          </div>
+          <h3>Calendar <button class="small" id="add-home-block">+ add block</button></h3>
+          <table class="lab-table" id="home-cal-table">
+            <thead><tr><th>Day</th><th>Start</th><th>End</th><th>Status</th><th>Label</th><th></th></tr></thead>
+            <tbody>${d.homeAgent.calendar.map((b, i) => calendarRow("home", b, i, WEBEX_STATUS_OPTIONS)).join("")}</tbody>
+          </table>
+        </div>
+        <div>
+          <h2>Partner agent <span class="topo-agent-kind">(${d.isIntraOrg ? "Webex" : "Copilot"})</span></h2>
+          <div class="lab-grid-2">
+            <label>Name<input type="text" id="f-partner-name" value="${esc(d.partnerAgent.personName)}" /></label>
+            <label>Notice needed (hrs)<input type="number" id="f-partner-notice" min="0" max="240" value="${d.partnerAgent.minNoticeHours}" /></label>
+          </div>
+          <h3>Calendar <button class="small" id="add-partner-block">+ add block</button></h3>
+          <table class="lab-table" id="partner-cal-table">
+            <thead><tr><th>Day</th><th>Start</th><th>End</th><th>Status</th><th>Label</th><th></th></tr></thead>
+            <tbody>${d.partnerAgent.calendar.map((b, i) => calendarRow("partner", b, i, d.isIntraOrg ? WEBEX_STATUS_OPTIONS : COPILOT_STATUS_OPTIONS)).join("")}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="primary" id="run-lab">Run comparison</button>
+      </div>
+      ${labState.error ? `<p class="lab-error">${esc(labState.error)}</p>` : ""}
+    </div>
+
+    <div id="lab-result"></div>
+  `;
+
+  wireLabForm();
+  if (labState.result) renderLabResult();
+}
+
+function syncFormIntoDraft() {
+  const d = labState.draft;
+  d.title = document.getElementById("f-title").value;
+  d.userStory = document.getElementById("f-userStory").value;
+  d.homeOrgId = document.getElementById("f-homeOrg").value;
+  d.isIntraOrg = document.getElementById("f-intraOrg").checked;
+  const partnerOrgSel = document.getElementById("f-partnerOrg");
+  if (partnerOrgSel) d.partnerOrgId = partnerOrgSel.value;
+
+  d.intent.goal = document.getElementById("f-goal").value;
+  d.intent.urgency = document.getElementById("f-urgency").value;
+  d.intent.durationMinutes = Number(document.getElementById("f-duration").value);
+  d.intent.requiredAttendees = document.getElementById("f-attendees").value;
+  d.baselineAssumedDurationMinutes = Number(document.getElementById("f-baselineDuration").value);
+  d.simulatedNowOffsetHours = Number(document.getElementById("f-nowOffset").value);
+
+  d.homeAgent.personName = document.getElementById("f-home-name").value;
+  d.homeAgent.minNoticeHours = Number(document.getElementById("f-home-notice").value);
+  d.partnerAgent.personName = document.getElementById("f-partner-name").value;
+  d.partnerAgent.minNoticeHours = Number(document.getElementById("f-partner-notice").value);
+
+  d.statedWindows = readTableRows("windows-table").map((r) => ({ day: r.day, start: r.start, end: r.end, label: r.label }));
+  d.homeAgent.calendar = readTableRows("home-cal-table").map((r) => ({ day: r.day, start: r.start, end: r.end, status: r.status, label: r.label }));
+  d.partnerAgent.calendar = readTableRows("partner-cal-table").map((r) => ({ day: r.day, start: r.start, end: r.end, status: r.status, label: r.label }));
+}
+
+function buildLabPayload() {
+  const d = labState.draft;
+  return {
+    title: d.title,
+    userStory: d.userStory,
+    homeOrgId: d.homeOrgId,
+    partnerOrgId: d.isIntraOrg ? d.homeOrgId : d.partnerOrgId,
+    isIntraOrg: d.isIntraOrg,
+    statedWindows: d.statedWindows,
+    baselineAssumedDurationMinutes: d.baselineAssumedDurationMinutes,
+    simulatedNowOffsetHours: d.simulatedNowOffsetHours,
+    intent: {
+      goal: d.intent.goal,
+      urgency: d.intent.urgency,
+      durationMinutes: d.intent.durationMinutes,
+      requiredAttendees: d.intent.requiredAttendees.split(",").map((s) => s.trim()).filter(Boolean),
+    },
+    homeAgent: {
+      personName: d.homeAgent.personName,
+      priorityTier: d.homeAgent.priorityTier,
+      notice: { minNoticeHours: d.homeAgent.minNoticeHours },
+      calendar: d.homeAgent.calendar,
+    },
+    partnerAgent: {
+      personName: d.partnerAgent.personName,
+      priorityTier: d.partnerAgent.priorityTier,
+      notice: { minNoticeHours: d.partnerAgent.minNoticeHours },
+      calendar: d.partnerAgent.calendar,
+    },
+  };
+}
+
+function wireLabForm() {
+  document.getElementById("preset-picker").addEventListener("change", async (e) => {
+    if (!e.target.value) {
+      labState.draft = defaultLabDraft();
+    } else {
+      const s = await apiGet(`/scenarios/${e.target.value}`);
+      labState.draft = presetToDraft(s);
+    }
+    labState.result = null;
+    labState.error = null;
+    renderLab();
+  });
+
+  document.getElementById("f-intraOrg").addEventListener("change", () => {
+    syncFormIntoDraft();
+    renderLab();
+  });
+
+  document.getElementById("add-window").addEventListener("click", () => {
+    syncFormIntoDraft();
+    labState.draft.statedWindows.push({ day: "Tue", start: "09:00", end: "10:00", label: "New window" });
+    renderLab();
+  });
+  document.getElementById("add-home-block").addEventListener("click", () => {
+    syncFormIntoDraft();
+    labState.draft.homeAgent.calendar.push({ day: "Tue", start: "09:00", end: "10:00", status: "free", label: "" });
+    renderLab();
+  });
+  document.getElementById("add-partner-block").addEventListener("click", () => {
+    syncFormIntoDraft();
+    labState.draft.partnerAgent.calendar.push({ day: "Tue", start: "09:00", end: "10:00", status: "free", label: "" });
+    renderLab();
+  });
+
+  app.querySelectorAll("[data-remove]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      syncFormIntoDraft();
+      const idx = Number(btn.dataset.idx);
+      if (btn.dataset.remove === "windows") labState.draft.statedWindows.splice(idx, 1);
+      else if (btn.dataset.remove === "home-cal") labState.draft.homeAgent.calendar.splice(idx, 1);
+      else if (btn.dataset.remove === "partner-cal") labState.draft.partnerAgent.calendar.splice(idx, 1);
+      renderLab();
+    })
+  );
+
+  document.getElementById("run-lab").addEventListener("click", async () => {
+    syncFormIntoDraft();
+    labState.error = null;
+    const resultEl = document.getElementById("lab-result");
+    resultEl.innerHTML = `<p class="loading">Running both negotiation modes against your scenario...</p>`;
+    try {
+      const data = await apiPost("/compare/custom", buildLabPayload());
+      labState.result = data;
+    } catch (err) {
+      labState.error = err.message;
+      labState.result = null;
+    }
+    renderLab();
+  });
+}
+
+function renderLabResult() {
+  const el = document.getElementById("lab-result");
+  if (!el || !labState.result) return;
+  const { withoutIoc, withIoc, scenario } = labState.result;
+  el.innerHTML = `
+    <div class="panel">
+      <h2 class="topo-heading">Where these agents actually live</h2>
+      ${renderTopologyDiagram(scenario)}
+    </div>
+    ${renderKpiRow(withoutIoc, withIoc)}
+    <div class="compare-grid">
+      ${compareColumn("without", "Without IoC", withoutIoc)}
+      ${compareColumn("with", "With IoC (CSP)", withIoc)}
     </div>
   `;
 }

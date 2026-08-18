@@ -54,7 +54,7 @@ The LLM is only ever used to narrate a scheduling decision that has already
 been made deterministically (see [Simulated vs. real](#simulated-vs-real)
 below) - it never decides which slot to book.
 
-## The four views
+## The five views
 
 - **Inbox** (`#/end-user`) - a mock Outlook thread with the scheduling ask.
   "Add Webex meeting" is a stub (this demo doesn't build a real
@@ -75,6 +75,19 @@ below) - it never decides which slot to book.
   "success" was actually an ungoverned or policy-violating booking); and the
   full side-by-side transcripts, colored for a quick "this one worked, this
   one didn't" read from across a room.
+- **Conflict Lab** (`#/lab`) - a live editor, not another fixture. Load any
+  preset as a starting point (or start blank), then edit either agent's
+  calendar row by row (add/remove busy, tentative-hold/focus-time, or free
+  blocks on any day/time), edit the stated windows and the real vs. naively-
+  assumed duration, flip intra-org vs. cross-company, pick any partner org
+  (its live trust status comes straight from the Admin view), and hit "Run
+  comparison." That call goes to `POST /api/compare/custom`, which validates
+  your input and runs it through the *exact same* `runWithoutIoc` /
+  `runWithIoc` functions as every preset scenario - there's no scripted
+  branch for "custom" scenarios, so whatever conflict you build gets
+  reasoned over live. This is the place to convince yourself the engine is
+  real: build a calendar clash that's never existed in this codebase before
+  and watch both modes work it out.
 - **Admin** (`#/admin`) - connected organizations and their trust status
   (with an approve/revoke action), a data-sharing policy panel with live
   toggles (free/busy, priority tier, meeting titles & attendees, human
@@ -162,6 +175,7 @@ server/src/
     reasoner.ts            pluggable explanation generator (rule-based | LLM)
     withoutIoc.ts          baseline negotiation
     withIoc.ts             five-stage CSP negotiation
+    customScenario.ts      validates Conflict Lab input into a real NegotiationScenario
     index.ts              runNegotiation(scenario, mode, policy)
   data/
     orgs.ts, scenarios.ts  seed data

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { resolveOrgName } from "../data/orgs";
 import { getScenario, scenarios } from "../data/scenarios";
 import { runNegotiation } from "../engine";
+import { buildCustomScenario } from "../engine/customScenario";
 import {
   acceptNegotiation,
   computeMetrics,
@@ -113,6 +114,23 @@ api.get("/compare/:scenarioId", async (req, res) => {
   withoutIoc.id = `preview-${scenario.id}-without-ioc`;
   withIoc.id = `preview-${scenario.id}-with-ioc`;
   res.json({ withoutIoc, withIoc });
+});
+
+// ---- Conflict Lab: build and run an ad hoc scenario against the real engine ----
+api.post("/compare/custom", async (req, res) => {
+  try {
+    const scenario = buildCustomScenario(req.body);
+    const policy = getPolicy();
+    const [withoutIoc, withIoc] = await Promise.all([
+      runNegotiation(scenario, "without-ioc", policy),
+      runNegotiation(scenario, "with-ioc", policy),
+    ]);
+    withoutIoc.id = "custom-without-ioc";
+    withIoc.id = "custom-with-ioc";
+    res.json({ withoutIoc, withIoc, scenario: withOrgNames(scenario) });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 // ---- Metrics (admin summary) ----
