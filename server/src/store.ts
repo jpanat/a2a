@@ -98,20 +98,17 @@ export function computeMetrics(): Metrics {
 
 /** Seeds the audit log with historical negotiations so the admin view isn't empty on first run. */
 export async function seedPastNegotiations(): Promise<void> {
-  // Spread across the last ~3 weeks, oldest first, mixing modes/orgs/outcomes.
+  // Spread across the last ~2 weeks, oldest first, mixing modes/outcomes.
+  // Outshift/Microsoft and the internal Cisco Security sync each recur more
+  // than once - realistic for two teams that negotiate regularly, not a
+  // one-off - so the audit log isn't just four rows.
   const plan: Array<{ scenarioId: string; mode: NegotiationSession["mode"]; daysAgo: number }> = [
-    { scenarioId: "solace-quarterly-review", mode: "without-ioc", daysAgo: 19 },
-    { scenarioId: "solace-quarterly-review", mode: "with-ioc", daysAgo: 18 },
-    { scenarioId: "bramwell-vendor-intro", mode: "without-ioc", daysAgo: 14 },
-    { scenarioId: "bramwell-vendor-intro", mode: "with-ioc", daysAgo: 13 },
-    { scenarioId: "orbit-urgent-outage", mode: "without-ioc", daysAgo: 9 },
-    { scenarioId: "orbit-urgent-outage", mode: "with-ioc", daysAgo: 9 },
-    { scenarioId: "fenwick-integration-sync", mode: "without-ioc", daysAgo: 5 },
-    { scenarioId: "fenwick-integration-sync", mode: "with-ioc", daysAgo: 4 },
-    { scenarioId: "cisco-internal-standup-prep", mode: "without-ioc", daysAgo: 3 },
-    { scenarioId: "cisco-internal-standup-prep", mode: "with-ioc", daysAgo: 3 },
-    { scenarioId: "outshift-microsoft-api-review", mode: "without-ioc", daysAgo: 2 },
-    { scenarioId: "outshift-microsoft-api-review", mode: "with-ioc", daysAgo: 1 },
+    { scenarioId: "cisco-internal-standup-prep", mode: "without-ioc", daysAgo: 13 },
+    { scenarioId: "cisco-internal-standup-prep", mode: "with-ioc", daysAgo: 12 },
+    { scenarioId: "outshift-microsoft-api-review", mode: "without-ioc", daysAgo: 9 },
+    { scenarioId: "outshift-microsoft-api-review", mode: "with-ioc", daysAgo: 8 },
+    { scenarioId: "outshift-microsoft-api-review", mode: "with-ioc", daysAgo: 4 },
+    { scenarioId: "cisco-internal-standup-prep", mode: "with-ioc", daysAgo: 1 },
   ];
   console.log("Seeding historical negotiations...");
   for (const entry of plan) {

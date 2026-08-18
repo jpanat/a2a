@@ -1,7 +1,7 @@
 import { DataSharingPolicy, Org } from "../types/domain";
 
-// Northwind's default outbound policy: what's allowed to cross the org
-// boundary for any trusted partner negotiation. Editable in the admin view.
+// Outshift by Cisco's default outbound policy: what's allowed to cross the
+// org boundary for any trusted partner negotiation. Editable in the admin view.
 export const DEFAULT_POLICY: DataSharingPolicy = {
   freeBusy: true,
   priorityTier: true,
@@ -9,18 +9,10 @@ export const DEFAULT_POLICY: DataSharingPolicy = {
   humanApprovalBeforeSend: true,
 };
 
-// Northwind Corp is the default "home" org for most seeded scenarios - every
-// Northwind employee's assistant is the WebexAgent. Home orgs aren't
-// themselves "connected organizations" in the admin view (they're "us", not
-// a partner to manage trust for) - the `orgs` list below is the external
-// partners a home org's agent negotiates with. A scenario can use a
-// different home org (e.g. "Outshift by Cisco") by pointing homeOrgId at
-// an entry in HOME_ORGS instead.
-export const HOME_ORG_ID = "northwind";
-export const HOME_ORG_NAME = "Northwind Corp";
-
+// Home orgs aren't themselves "connected organizations" in the admin view
+// (they're "us", not a partner to manage trust for) - the `orgs` list below
+// is the external partners a home org's agent negotiates with.
 export const HOME_ORGS: Record<string, { id: string; name: string }> = {
-  northwind: { id: "northwind", name: "Northwind Corp" },
   "cisco-outshift": { id: "cisco-outshift", name: "Outshift by Cisco" },
 };
 
@@ -29,30 +21,6 @@ export function getHomeOrgName(id: string): string {
 }
 
 export const orgs: Org[] = [
-  {
-    id: "fenwick",
-    name: "Fenwick Partners",
-    agentKind: "copilot",
-    trustStatus: "trusted",
-  },
-  {
-    id: "solace",
-    name: "Solace Health",
-    agentKind: "copilot",
-    trustStatus: "trusted",
-  },
-  {
-    id: "orbit",
-    name: "Orbit Logistics",
-    agentKind: "copilot",
-    trustStatus: "trusted",
-  },
-  {
-    id: "bramwell",
-    name: "Bramwell & Vance",
-    agentKind: "copilot",
-    trustStatus: "pending-review",
-  },
   {
     id: "microsoft",
     name: "Microsoft",

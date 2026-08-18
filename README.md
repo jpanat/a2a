@@ -5,24 +5,32 @@ with plain, unstructured message-passing, and once through a **Cognition
 State Protocol (CSP)**: a semantic coordination layer with three properties -
 **shared intent**, **shared ontology/context**, and **shared reasoning**.
 
-The scenario: Dana (Northwind Corp, Outlook + Webex Scheduler) emails Marcus
-(a partner company, Outlook + Microsoft Copilot) to find time for a sync.
+The scenario: Riya (Outshift by Cisco, Outlook + Webex Scheduler) emails
+Grace (Microsoft, Outlook + Microsoft Copilot) to find time for a sync.
 Instead of humans going back and forth, each side's scheduling agent
 negotiates on their behalf. The demo lets you compare what that negotiation
 looks like with and without a shared protocol.
 
-Six scenarios are seeded, covering three different topologies:
+Two scenarios are seeded, covering both topologies the app supports:
 
-- **Cross-company, different vendors** - Northwind x Fenwick/Solace/Bramwell/
-  Orbit (Webex ↔ Copilot), and **Outshift by Cisco x Microsoft**
-  (`outshift-microsoft-api-review`) - the real pairing this demo is built to
-  pitch: Cisco's Webex Scheduler side negotiating with a Microsoft Copilot
-  counterpart.
+- **Cross-company, different vendors** - `outshift-microsoft-api-review`:
+  Outshift by Cisco (Webex) negotiating with Microsoft (Copilot) - the real
+  pairing this demo is built to pitch.
 - **Intra-company, same vendor** - `cisco-internal-standup-prep`: two Cisco
   employees in different business units (Outshift and Cisco Security), both
   on Webex. No vendor to blame, no vocabulary to translate - this scenario
   isolates how much of CSP's value comes purely from shared intent and joint
   reasoning, independent of the ontology-translation story.
+
+An earlier iteration of this demo also seeded four Northwind-branded
+scenarios (Fenwick Partners, Solace Health, Bramwell & Vance, Orbit
+Logistics) to show a trust-gate escalation and a notice-period escalation
+specifically. Those were removed to keep the app focused on the Cisco/
+Microsoft storyline the demo is actually for - the underlying mechanics
+(trust gating in `engine/stages.ts`'s `discoveryStage`, notice-period checks
+in `engine/withIoc.ts`) are unchanged and still exercised by the Live
+Protocol view's Drift, Loop, and Emergent-Conflict demos; there just isn't a
+dedicated preset scenario for the trust-gate case at the moment.
 
 Everything is simulated - there are no real Webex, Microsoft Graph, or
 Copilot API calls. Calendars, org data, and the email thread are all
@@ -217,24 +225,26 @@ strategy or a mutated calendar.
 
 `server/src/data/` seeds:
 
-- 5 partner orgs (`server/src/data/orgs.ts`): Fenwick Partners, Solace
-  Health, Orbit Logistics, and Microsoft (all trusted), and Bramwell &
-  Vance (pending review, used for the trust-escalation case). Two "home"
-  orgs exist alongside them in a separate `HOME_ORGS` registry (Northwind
-  Corp and Outshift by Cisco) - home orgs are "us" in a given scenario, not
-  a partner to manage trust for, so they're deliberately kept out of the
-  admin view's connected-organizations list.
-- 6 negotiation scenarios (`server/src/data/scenarios.ts`), each with its
-  own email thread, calendars, and stated windows - designed so the
-  contrast between modes is genuine, not scripted: one flagship scenario
-  where the baseline stalls and escalates while CSP mode resolves it (and
-  its Outshift/Microsoft reskin); one "good case" where even the baseline
-  succeeds, just less efficiently; the trust-gate case; the notice-period
-  case; and the intra-company case described above.
-- 12 historical negotiations (one of each scenario x mode) are run through
-  the real engine at server startup and backdated over the last ~3 weeks,
-  so the admin audit log and metrics aren't empty on first run. Metrics on
-  the admin page are computed from this data, not hardcoded.
+- 1 partner org (`server/src/data/orgs.ts`): Microsoft (trusted). "Home"
+  orgs live alongside it in a separate `HOME_ORGS` registry (currently just
+  Outshift by Cisco) - home orgs are "us" in a given scenario, not a partner
+  to manage trust for, so they're deliberately kept out of the admin view's
+  connected-organizations list. Toggling Microsoft's trust status in the
+  admin view still exercises the same trust-gate code path the discovery
+  stage checks (`engine/stages.ts`), it's just no longer paired with a
+  dedicated seeded "starts out untrusted" scenario.
+- 2 negotiation scenarios (`server/src/data/scenarios.ts`), each with its own
+  email thread, calendars, and stated windows: the flagship cross-company
+  case (baseline stalls and escalates on an ontology mismatch + naive
+  duration default; CSP mode resolves it) and the intra-company case
+  (isolates shared-intent + joint-reasoning value with no vendor mismatch
+  possible).
+- 6 historical negotiations (mixing modes, with a couple of realistic
+  repeats - these two scenarios' participants plausibly negotiate more than
+  once) are run through the real engine at server startup and backdated
+  over the last ~2 weeks, so the admin audit log and metrics aren't empty on
+  first run. Metrics on the admin page are computed from this data, not
+  hardcoded.
 
 ## Architecture
 
@@ -367,7 +377,7 @@ production:
   short-circuits to "same org, no trust check needed" and stage (b) collapses
   to a one-line "already speak the same vocabulary" instead of two identical
   mapping tables.
-- The data-sharing policy panel is a single global policy (Northwind's
+- The data-sharing policy panel is a single global policy (Outshift's
   outbound stance for any trusted partner), not per-org, matching how the
   panel was described in the brief. Per-org overrides would be a natural
   extension if needed.

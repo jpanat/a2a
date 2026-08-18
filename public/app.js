@@ -656,10 +656,7 @@ async function renderEmergentTab(container) {
 const WEBEX_STATUS_OPTIONS = ["free", "tentative-hold", "busy"];
 const COPILOT_STATUS_OPTIONS = ["free", "focus-time", "busy"];
 const DAY_OPTIONS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-const HOME_ORG_OPTIONS = [
-  { id: "northwind", name: "Northwind Corp" },
-  { id: "cisco-outshift", name: "Outshift by Cisco" },
-];
+const HOME_ORG_OPTIONS = [{ id: "cisco-outshift", name: "Outshift by Cisco" }];
 
 let labState = { presets: [], orgs: [], draft: null, result: null, error: null };
 
@@ -669,7 +666,7 @@ function defaultLabDraft() {
     userStory: "Testing a specific conflict I want to see the engine handle.",
     homeOrgId: "cisco-outshift",
     isIntraOrg: false,
-    partnerOrgId: "fenwick",
+    partnerOrgId: "microsoft",
     statedWindows: [{ day: "Tue", start: "14:00", end: "17:00", label: "Tue afternoon" }],
     baselineAssumedDurationMinutes: 60,
     simulatedNowOffsetHours: 240,
@@ -685,7 +682,7 @@ function presetToDraft(s) {
     userStory: s.userStory,
     homeOrgId: s.homeOrgId,
     isIntraOrg: !!s.isIntraOrg,
-    partnerOrgId: s.isIntraOrg ? labState.orgs[0]?.id ?? "fenwick" : s.partnerOrgId,
+    partnerOrgId: s.isIntraOrg ? labState.orgs[0]?.id ?? "microsoft" : s.partnerOrgId,
     statedWindows: s.statedWindows.map((w) => ({ ...w })),
     baselineAssumedDurationMinutes: s.baselineAssumedDurationMinutes ?? 60,
     simulatedNowOffsetHours: s.simulatedNowOffsetHours ?? 240,
@@ -997,7 +994,7 @@ async function renderAdmin() {
 
   app.innerHTML = `
     <h1>Admin console</h1>
-    <p class="subtitle">Northwind Corp's cross-org negotiation settings, trust relationships, and audit history.</p>
+    <p class="subtitle">Outshift by Cisco's cross-org negotiation settings, trust relationships, and audit history.</p>
 
     <div class="metrics-row">
       <div class="metric-tile"><div class="num">${metrics.trustedOrgCount}</div><div class="lbl">Trusted orgs</div></div>
