@@ -3,6 +3,9 @@
 // vocabulary, and only ever reasons about one candidate slot at a time. This
 // is what most "agent-to-agent" scheduling looks like today without a
 // coordination layer - it's genuinely usable, just inefficient and brittle.
+// This baseline has no concept of "same org vs. different org" either - it
+// behaves identically whether the two agents are cross-company or two
+// employees at the same company, which is itself part of the point.
 import {
   AgentProfile,
   Day,
@@ -50,6 +53,10 @@ function isFreeForAgent(agent: AgentProfile, c: Candidate): boolean {
   return statusAt(agent, c.day, c.start, c.end).status === "free";
 }
 
+function fromFor(agent: AgentProfile): TranscriptMessage["from"] {
+  return agent.kind === "webex" ? "webex-agent" : "copilot-agent";
+}
+
 export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession {
   const startedAt = new Date();
   const transcript: TranscriptMessage[] = [];
@@ -57,6 +64,7 @@ export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession
   const candidates = buildCandidates(scenario, duration);
   const tried = new Set<string>();
   const key = (c: Candidate) => `${c.day}-${c.start}`;
+  const { homeAgent, partnerAgent } = scenario;
 
   transcript.push(
     sys(
@@ -67,28 +75,27 @@ export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession
     )
   );
 
-  let proposer: "webex" | "copilot" = "webex";
+  let proposer: "home" | "partner" = "home";
   let round = 1;
   let resolved: Candidate | undefined;
   let escalationReason: string | undefined;
 
   while (round <= MAX_ROUNDS) {
-    const proposerAgent = proposer === "webex" ? scenario.webexAgent : scenario.copilotAgent;
-    const responderAgent = proposer === "webex" ? scenario.copilotAgent : scenario.webexAgent;
+    const proposerAgent = proposer === "home" ? homeAgent : partnerAgent;
+    const responderAgent = proposer === "home" ? partnerAgent : homeAgent;
 
     const pick = candidates.find((c) => !tried.has(key(c)) && isFreeForAgent(proposerAgent, c));
     if (!pick) {
       // This agent has nothing left to offer from its own calendar. Hand off
       // to the other side once; if THEY also have nothing, it's a stalemate.
-      const otherAgent = responderAgent;
-      const otherPick = candidates.find((c) => !tried.has(key(c)) && isFreeForAgent(otherAgent, c));
+      const otherPick = candidates.find((c) => !tried.has(key(c)) && isFreeForAgent(responderAgent, c));
       if (!otherPick) {
         escalationReason =
           "Both agents have exhausted every candidate slot within the stated windows without finding one free on both calendars. " +
           "Neither agent can see whether the other's held time is movable, so nothing marked busy on either side gets reconsidered.";
         break;
       }
-      proposer = proposer === "webex" ? "copilot" : "webex";
+      proposer = proposer === "home" ? "partner" : "home";
       continue;
     }
 
@@ -96,7 +103,7 @@ export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession
     transcript.push({
       round,
       stage: "baseline-exchange",
-      from: proposer === "webex" ? "webex-agent" : "copilot-agent",
+      from: fromFor(proposerAgent),
       kind: "proposal",
       text: `${label(proposerAgent)}: proposes ${formatSlot(pick.day, pick.start, pick.end)} (${pick.windowLabel}), ${duration} min.`,
       data: { day: pick.day, start: pick.start, end: pick.end },
@@ -109,7 +116,7 @@ export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession
       transcript.push({
         round,
         stage: "baseline-exchange",
-        from: proposer === "webex" ? "copilot-agent" : "webex-agent",
+        from: fromFor(responderAgent),
         kind: "resolution",
         text: `${label(responderAgent)}: that slot is open on my calendar too - agreed.`,
         timestamp: iso(startedAt, round),
@@ -127,13 +134,13 @@ export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession
     transcript.push({
       round,
       stage: "baseline-exchange",
-      from: proposer === "webex" ? "copilot-agent" : "webex-agent",
+      from: fromFor(responderAgent),
       kind: "rejection",
       text: `${label(responderAgent)}: can't do that time${mismatchNote}.`,
       timestamp: iso(startedAt, round),
     });
 
-    proposer = proposer === "webex" ? "copilot" : "webex";
+    proposer = proposer === "home" ? "partner" : "home";
     round += 1;
   }
 
@@ -148,7 +155,7 @@ export function runWithoutIoc(scenario: NegotiationScenario): NegotiationSession
       stage: "escalation",
       from: "system",
       kind: "escalation",
-      text: `Escalating to Dana and the partner contact for manual scheduling: ${escalationReason}`,
+      text: `Escalating to ${homeAgent.personName} and ${partnerAgent.personName} for manual scheduling: ${escalationReason}`,
       timestamp: endedAt.toISOString(),
     });
   }

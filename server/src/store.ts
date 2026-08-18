@@ -105,6 +105,10 @@ export async function seedPastNegotiations(): Promise<void> {
     { scenarioId: "orbit-urgent-outage", mode: "with-ioc", daysAgo: 9 },
     { scenarioId: "fenwick-integration-sync", mode: "without-ioc", daysAgo: 5 },
     { scenarioId: "fenwick-integration-sync", mode: "with-ioc", daysAgo: 4 },
+    { scenarioId: "cisco-internal-standup-prep", mode: "without-ioc", daysAgo: 3 },
+    { scenarioId: "cisco-internal-standup-prep", mode: "with-ioc", daysAgo: 3 },
+    { scenarioId: "outshift-microsoft-api-review", mode: "without-ioc", daysAgo: 2 },
+    { scenarioId: "outshift-microsoft-api-review", mode: "with-ioc", daysAgo: 1 },
   ];
   for (const entry of plan) {
     const scenario = getScenario(entry.scenarioId);

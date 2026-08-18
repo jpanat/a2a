@@ -11,6 +11,19 @@ Instead of humans going back and forth, each side's scheduling agent
 negotiates on their behalf. The demo lets you compare what that negotiation
 looks like with and without a shared protocol.
 
+Six scenarios are seeded, covering three different topologies:
+
+- **Cross-company, different vendors** - Northwind x Fenwick/Solace/Bramwell/
+  Orbit (Webex ↔ Copilot), and **Outshift by Cisco x Microsoft**
+  (`outshift-microsoft-api-review`) - the real pairing this demo is built to
+  pitch: Cisco's Webex Scheduler side negotiating with a Microsoft Copilot
+  counterpart.
+- **Intra-company, same vendor** - `cisco-internal-standup-prep`: two Cisco
+  employees in different business units (Outshift and Cisco Security), both
+  on Webex. No vendor to blame, no vocabulary to translate - this scenario
+  isolates how much of CSP's value comes purely from shared intent and joint
+  reasoning, independent of the ontology-translation story.
+
 Everything is simulated - there are no real Webex, Microsoft Graph, or
 Copilot API calls. Calendars, org data, and the email thread are all
 in-memory mock data.
@@ -51,10 +64,17 @@ below) - it never decides which slot to book.
   transcript. Accepting shows a mock calendar-invite confirmation with a
   Webex join link.
 - **Compare modes** (`#/compare`) - the centerpiece for a live demo. Pick a
-  scenario and see the same negotiation run through both modes side by side:
-  rounds, time to outcome, final result, and the full transcript for each,
-  colored for a quick "this one worked, this one didn't" read from across a
-  room.
+  scenario and see: the user story this negotiation exists to serve; a small
+  diagram of where each agent actually lives (two separate org tenants
+  joined by a CSP trust channel for cross-company scenarios, or a single
+  tenant with two agents reasoning directly for the intra-company one); a
+  KPI strip computed from the two runs (rounds, time saved, and a plain-
+  English headline - "Escalation avoided", "Same outcome, N fewer round-
+  trips", or "CSP correctly stopped a booking the baseline would have made
+  blindly" when CSP's *correct* answer is to escalate and the baseline's
+  "success" was actually an ungoverned or policy-violating booking); and the
+  full side-by-side transcripts, colored for a quick "this one worked, this
+  one didn't" read from across a room.
 - **Admin** (`#/admin`) - connected organizations and their trust status
   (with an approve/revoke action), a data-sharing policy panel with live
   toggles (free/busy, priority tier, meeting titles & attendees, human
@@ -112,17 +132,21 @@ third of the seeded audit log is escalations, not five-star successes.
 
 `server/src/data/` seeds:
 
-- 4 partner orgs (`server/src/data/orgs.ts`): Fenwick Partners and Solace
-  Health (trusted), Orbit Logistics (trusted, used for the notice-period
-  escalation case), and Bramwell & Vance (pending review, used for the
-  trust-escalation case).
-- 4 negotiation scenarios (`server/src/data/scenarios.ts`), each with its
+- 5 partner orgs (`server/src/data/orgs.ts`): Fenwick Partners, Solace
+  Health, Orbit Logistics, and Microsoft (all trusted), and Bramwell &
+  Vance (pending review, used for the trust-escalation case). Two "home"
+  orgs exist alongside them in a separate `HOME_ORGS` registry (Northwind
+  Corp and Outshift by Cisco) - home orgs are "us" in a given scenario, not
+  a partner to manage trust for, so they're deliberately kept out of the
+  admin view's connected-organizations list.
+- 6 negotiation scenarios (`server/src/data/scenarios.ts`), each with its
   own email thread, calendars, and stated windows - designed so the
   contrast between modes is genuine, not scripted: one flagship scenario
-  where the baseline stalls and escalates while CSP mode resolves it; one
-  "good case" where even the baseline succeeds, just less efficiently; the
-  trust-gate case; and the notice-period case.
-- 8 historical negotiations (one of each scenario x mode) are run through
+  where the baseline stalls and escalates while CSP mode resolves it (and
+  its Outshift/Microsoft reskin); one "good case" where even the baseline
+  succeeds, just less efficiently; the trust-gate case; the notice-period
+  case; and the intra-company case described above.
+- 12 historical negotiations (one of each scenario x mode) are run through
   the real engine at server startup and backdated over the last ~3 weeks,
   so the admin audit log and metrics aren't empty on first run. Metrics on
   the admin page are computed from this data, not hardcoded.
@@ -197,14 +221,27 @@ production:
   (minimum notice hours) per agent. Real orgs have much richer policies
   (working hours, blackout periods, delegate approval chains) that a
   production version would need to model explicitly.
+- **Agent hosting diagram** - the "where these agents actually live" diagram
+  in the Compare view (an inline SVG driven by `scenario.isIntraOrg`) is
+  illustrative, not a real deployment topology. A production CSP layer would
+  actually need to decide where each agent runs (inside the employer's
+  tenant vs. a third-party broker), how it authenticates outbound, and how
+  the trust channel between tenants is actually secured (mTLS, signed
+  tokens, a broker service) - the diagram just names that decision, it
+  doesn't make it.
 
 ## Design choices worth calling out
 
-- Northwind Corp is the implicit "home" org (every Northwind employee uses
-  the WebexAgent); the four seeded orgs are all *partner* orgs on the
-  Copilot side, since the scenario in the prompt only needed one Webex-side
-  actor. Swapping which side of the negotiation is the "home" org would be a
-  small change to `scenarios.ts`, not an architectural one.
+- A scenario's two participants are named `homeAgent` (whoever sent the
+  first email) and `partnerAgent` (the other side), each an `AgentProfile`
+  with its own `kind` (`webex` | `copilot`). Nothing in the engine assumes
+  the partner is on a different vendor or a different company - a scenario
+  sets `isIntraOrg: true` and gives both agents the same `kind` to model two
+  employees at one company instead. That's what makes the intra-Cisco
+  scenario possible without forking the negotiation logic: stage (a)
+  short-circuits to "same org, no trust check needed" and stage (b) collapses
+  to a one-line "already speak the same vocabulary" instead of two identical
+  mapping tables.
 - The data-sharing policy panel is a single global policy (Northwind's
   outbound stance for any trusted partner), not per-org, matching how the
   panel was described in the brief. Per-org overrides would be a natural

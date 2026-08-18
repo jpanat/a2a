@@ -112,11 +112,24 @@ export interface StatedWindow {
 export interface NegotiationScenario {
   id: string;
   title: string;
-  homeOrgId: string; // Northwind Corp, always the Webex side
-  partnerOrgId: string;
+  /** One line, human-facing: why this negotiation matters to the person who needs it, framed as a user story. */
+  userStory: string;
+  homeOrgId: string; // the org whose employee sent the first email
+  partnerOrgId: string; // the other side. Equal to homeOrgId when isIntraOrg is true.
+  /**
+   * True when both agents belong to the same organization (e.g. two
+   * employees at the same company, different business units). No
+   * cross-org trust/discovery is needed, and if both agents share the same
+   * AgentKind there's nothing to translate at the ontology stage either -
+   * this isolates how much of CSP's value comes from shared intent + joint
+   * reasoning alone, versus vocabulary translation.
+   */
+  isIntraOrg?: boolean;
   emailThread: EmailMessage[];
-  webexAgent: AgentProfile;
-  copilotAgent: AgentProfile;
+  /** The agent for the person who sent the first email. */
+  homeAgent: AgentProfile;
+  /** The agent for the other side - a cross-org partner, or another employee at the same org. */
+  partnerAgent: AgentProfile;
   /** Rough day-part windows as stated by the humans in the email thread. */
   statedWindows: StatedWindow[];
   /**

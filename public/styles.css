@@ -103,6 +103,11 @@ select, input[type=text] {
 .thread-item .org { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
 .thread-item.active, .thread-item:hover { background: #eef1fb; }
 
+.user-story {
+  background: #f6f2fb; border: 1px solid #e0d4f0; border-radius: 8px;
+  padding: 10px 14px; font-size: 13.5px; font-style: italic; color: #4a3766; margin-bottom: 16px;
+}
+
 .email-msg { border-bottom: 1px solid var(--border); padding: 16px 0; }
 .email-msg:last-child { border-bottom: none; }
 .email-msg .meta { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
@@ -169,6 +174,24 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 }
 .modal { background: var(--panel); border-radius: var(--radius); max-width: 720px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 22px 26px; }
 .modal h2 { display: flex; justify-content: space-between; align-items: center; }
+
+/* ---------- Topology diagram ---------- */
+.topo-heading { margin-top: 16px; }
+.topology-svg { width: 100%; height: auto; display: block; }
+.topo-tenant-label { font-size: 12px; font-weight: 700; fill: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.topo-agent-name { font-size: 15px; font-weight: 700; fill: var(--ink); }
+.topo-agent-kind { font-size: 12px; fill: var(--muted); }
+.topo-link-label { font-size: 11px; fill: var(--muted); font-weight: 600; }
+
+/* ---------- KPI row ---------- */
+.kpi-row { border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; border: 2px solid var(--border); }
+.kpi-row.kpi-good { border-color: var(--good); background: var(--good-bg); }
+.kpi-row.kpi-warn { border-color: var(--warn); background: var(--warn-bg); }
+.kpi-row.kpi-neutral { border-color: var(--border); background: #f3f4f6; }
+.kpi-headline { font-size: 17px; font-weight: 800; margin-bottom: 12px; }
+.kpi-tiles { display: flex; gap: 28px; flex-wrap: wrap; }
+.kpi-tile .val { font-size: 24px; font-weight: 800; }
+.kpi-tile .lbl { font-size: 12px; color: var(--muted); }
 
 /* ---------- Comparison view ---------- */
 .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }

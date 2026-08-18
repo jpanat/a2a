@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { resolveOrgName } from "../data/orgs";
 import { getScenario, scenarios } from "../data/scenarios";
 import { runNegotiation } from "../engine";
 import {
@@ -41,22 +42,31 @@ api.patch("/policy", (req, res) => {
 });
 
 // ---- Scenarios (end-user email thread + negotiate) ----
+function withOrgNames<T extends { homeOrgId: string; partnerOrgId: string }>(s: T) {
+  return { ...s, homeOrgName: resolveOrgName(s.homeOrgId), partnerOrgName: resolveOrgName(s.partnerOrgId) };
+}
+
 api.get("/scenarios", (_req, res) => {
   res.json(
-    scenarios.map((s) => ({
-      id: s.id,
-      title: s.title,
-      partnerOrgId: s.partnerOrgId,
-      emailThread: s.emailThread,
-      statedWindows: s.statedWindows,
-    }))
+    scenarios.map((s) =>
+      withOrgNames({
+        id: s.id,
+        title: s.title,
+        userStory: s.userStory,
+        homeOrgId: s.homeOrgId,
+        partnerOrgId: s.partnerOrgId,
+        isIntraOrg: s.isIntraOrg ?? false,
+        emailThread: s.emailThread,
+        statedWindows: s.statedWindows,
+      })
+    )
   );
 });
 
 api.get("/scenarios/:id", (req, res) => {
   const s = getScenario(req.params.id);
   if (!s) return res.status(404).json({ error: "scenario not found" });
-  res.json(s);
+  res.json(withOrgNames(s));
 });
 
 // ---- Negotiations (live demo + audit log) ----

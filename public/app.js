@@ -48,6 +48,103 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+// ---------------- Topology diagram: where each agent actually lives ----------------
+function agentKindShort(kind) {
+  return kind === "webex" ? "Webex" : "Copilot";
+}
+
+function svgPill(x, y, w, h, fill, stroke) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5" />`;
+}
+
+function renderTopologyDiagram(scenario) {
+  const home = scenario.homeAgent;
+  const partner = scenario.partnerAgent;
+  const homeColor = home.kind === "webex" ? "var(--webex)" : "var(--copilot)";
+  const partnerColor = partner.kind === "webex" ? "var(--webex)" : "var(--copilot)";
+
+  if (scenario.isIntraOrg) {
+    return `
+      <svg viewBox="0 0 640 190" class="topology-svg" role="img" aria-label="Both agents hosted inside the same org tenant">
+        <rect x="30" y="20" width="580" height="150" rx="16" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 5" />
+        <text x="50" y="46" class="topo-tenant-label">${esc(scenario.homeOrgName)} - single tenant</text>
+
+        ${svgPill(90, 75, 190, 70, "#eef1fb", homeColor)}
+        <text x="185" y="103" text-anchor="middle" class="topo-agent-name">${esc(home.personName)}</text>
+        <text x="185" y="123" text-anchor="middle" class="topo-agent-kind">${esc(agentKindShort(home.kind))} agent</text>
+
+        ${svgPill(360, 75, 190, 70, "#eef1fb", partnerColor)}
+        <text x="455" y="103" text-anchor="middle" class="topo-agent-name">${esc(partner.personName)}</text>
+        <text x="455" y="123" text-anchor="middle" class="topo-agent-kind">${esc(agentKindShort(partner.kind))} agent</text>
+
+        <line x1="280" y1="110" x2="360" y2="110" stroke="var(--good)" stroke-width="2.5" />
+        <text x="320" y="150" text-anchor="middle" class="topo-link-label">direct reasoning -</text>
+        <text x="320" y="164" text-anchor="middle" class="topo-link-label">no trust boundary to cross</text>
+      </svg>`;
+  }
+
+  return `
+    <svg viewBox="0 0 640 190" class="topology-svg" role="img" aria-label="Each agent hosted inside its own org tenant">
+      <rect x="10" y="20" width="270" height="150" rx="16" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 5" />
+      <text x="28" y="46" class="topo-tenant-label">${esc(scenario.homeOrgName)}</text>
+      ${svgPill(50, 70, 190, 70, "#eef1fb", homeColor)}
+      <text x="145" y="98" text-anchor="middle" class="topo-agent-name">${esc(home.personName)}</text>
+      <text x="145" y="118" text-anchor="middle" class="topo-agent-kind">${esc(agentKindShort(home.kind))} agent</text>
+
+      <rect x="360" y="20" width="270" height="150" rx="16" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 5" />
+      <text x="378" y="46" class="topo-tenant-label">${esc(scenario.partnerOrgName)}</text>
+      ${svgPill(400, 70, 190, 70, "#eef1fb", partnerColor)}
+      <text x="495" y="98" text-anchor="middle" class="topo-agent-name">${esc(partner.personName)}</text>
+      <text x="495" y="118" text-anchor="middle" class="topo-agent-kind">${esc(agentKindShort(partner.kind))} agent</text>
+
+      <line x1="280" y1="105" x2="360" y2="105" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="5 4" />
+      <text x="320" y="146" text-anchor="middle" class="topo-link-label">CSP trust</text>
+      <text x="320" y="160" text-anchor="middle" class="topo-link-label">channel</text>
+    </svg>`;
+}
+
+// ---------------- KPI deltas between the two modes ----------------
+function computeKpis(withoutIoc, withIoc) {
+  const roundsDelta = withoutIoc.rounds - withIoc.rounds;
+  const timePctSaved =
+    withoutIoc.durationMs && withIoc.durationMs
+      ? Math.round((1 - withIoc.durationMs / withoutIoc.durationMs) * 100)
+      : null;
+
+  let headline;
+  let tone;
+  if (withoutIoc.status === "escalated" && withIoc.status === "agreed") {
+    headline = "Escalation avoided - CSP resolved what the baseline couldn't";
+    tone = "good";
+  } else if (withoutIoc.status === "agreed" && withIoc.status === "escalated") {
+    headline = "CSP correctly stopped a booking the baseline would have made blindly";
+    tone = "warn";
+  } else if (withoutIoc.status === "agreed" && withIoc.status === "agreed") {
+    headline =
+      roundsDelta > 0
+        ? `Same outcome, ${roundsDelta} fewer round-trip${roundsDelta === 1 ? "" : "s"}`
+        : "Same outcome, reached in a single joint pass";
+    tone = "good";
+  } else {
+    headline = "Escalated in both modes - a real human call either way";
+    tone = "neutral";
+  }
+  return { roundsDelta, timePctSaved, headline, tone };
+}
+
+function renderKpiRow(withoutIoc, withIoc) {
+  const k = computeKpis(withoutIoc, withIoc);
+  return `
+    <div class="kpi-row kpi-${k.tone}">
+      <div class="kpi-headline">${esc(k.headline)}</div>
+      <div class="kpi-tiles">
+        <div class="kpi-tile"><div class="val">${withoutIoc.rounds} → ${withIoc.rounds}</div><div class="lbl">Negotiation rounds</div></div>
+        <div class="kpi-tile"><div class="val">${k.timePctSaved != null ? `${k.timePctSaved}%` : "-"}</div><div class="lbl">Time saved</div></div>
+        <div class="kpi-tile"><div class="val">${withoutIoc.transcript.length} → ${withIoc.transcript.length}</div><div class="lbl">Messages exchanged</div></div>
+      </div>
+    </div>`;
+}
+
 const STAGE_LABELS = {
   discovery: "Discovery",
   "ontology-grounding": "Ontology grounding",
@@ -127,6 +224,7 @@ async function renderEndUser() {
       </div>
       <div class="panel">
         <h2>${esc(scenario.title)}</h2>
+        <div class="user-story">${esc(scenario.userStory)}</div>
         ${scenario.emailThread
           .map(
             (m) => `
@@ -252,11 +350,14 @@ async function renderCompare() {
   }
   if (!compareState.data || compareState.data.scenarioId !== compareState.activeId) {
     app.innerHTML = `<h1>Without IoC vs. With IoC</h1><p class="loading">Running both negotiation modes...</p>`;
-    const data = await apiGet(`/compare/${compareState.activeId}`);
-    compareState.data = { scenarioId: compareState.activeId, ...data };
+    const [data, scenarioDetail] = await Promise.all([
+      apiGet(`/compare/${compareState.activeId}`),
+      apiGet(`/scenarios/${compareState.activeId}`),
+    ]);
+    compareState.data = { scenarioId: compareState.activeId, scenarioDetail, ...data };
   }
 
-  const { withoutIoc, withIoc } = compareState.data;
+  const { withoutIoc, withIoc, scenarioDetail } = compareState.data;
 
   app.innerHTML = `
     <h1>Without IoC vs. With IoC</h1>
@@ -267,6 +368,12 @@ async function renderCompare() {
         ${compareState.scenarios.map((s) => `<option value="${s.id}" ${s.id === compareState.activeId ? "selected" : ""}>${esc(s.title)}</option>`).join("")}
       </select>
     </div>
+    <div class="panel">
+      <div class="user-story">${esc(scenarioDetail.userStory)}</div>
+      <h2 class="topo-heading">Where these agents actually live</h2>
+      ${renderTopologyDiagram(scenarioDetail)}
+    </div>
+    ${renderKpiRow(withoutIoc, withIoc)}
     <div class="compare-grid">
       ${compareColumn("without", "Without IoC", withoutIoc)}
       ${compareColumn("with", "With IoC (CSP)", withIoc)}
