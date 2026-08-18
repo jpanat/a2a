@@ -29,9 +29,11 @@
 const express = require('express');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 4001;
 const WORKDAY_AGENT_URL = process.env.WORKDAY_AGENT_URL || 'http://localhost:4000';
@@ -66,6 +68,10 @@ app.post('/trigger', async (req, res) => {
   let currentAttendees = required_attendees;
   let round = 0;
   let lastResponse = null;
+  // Mirrors the console log, but structured, so the UI can render the round-by-round
+  // story after the (fast, all-mocked) negotiation has finished — this demo doesn't
+  // stream progress live, it replays the trace once the outcome is known.
+  const trace = [];
 
   console.log(
     `\n=== [${task_id}] Starting negotiation for ${candidate_id} / ${requisition_id} ===`
@@ -111,6 +117,14 @@ app.post('/trigger', async (req, res) => {
     console.log(`[${task_id}] Round ${round} <- Workday responded:`, JSON.stringify(workdayResponse));
     lastResponse = workdayResponse;
 
+    const roundTrace = {
+      round,
+      proposed_window: currentWindow,
+      workday_response_type: workdayResponse.type,
+      workday_payload: workdayResponse.payload
+    };
+    trace.push(roundTrace);
+
     if (workdayResponse.type === 'accept') {
       const acceptedWindow = workdayResponse.payload.accepted_window;
       console.log(
@@ -143,7 +157,8 @@ app.post('/trigger', async (req, res) => {
       return res.json({
         outcome: 'accepted',
         rounds: round,
-        booking: bookingResponse.booking
+        booking: bookingResponse.booking,
+        trace
       });
     }
 
@@ -187,6 +202,7 @@ app.post('/trigger', async (req, res) => {
 
       const freeWindows = availabilityResponse.free_windows || [];
       console.log(`[${task_id}] Scheduling Agent free windows:`, JSON.stringify(freeWindows));
+      roundTrace.free_windows = freeWindows;
 
       if (!freeWindows.length) {
         console.log(
@@ -205,16 +221,19 @@ app.post('/trigger', async (req, res) => {
           : [];
         if (meetingDeadline.length) {
           chosenWindow = meetingDeadline[0];
+          roundTrace.tie_break_note = `Multiple free windows; chose the one meeting SLA deadline ${sla_deadline}.`;
           console.log(
             `[${task_id}] Tie-break: multiple free windows, choosing ${JSON.stringify(chosenWindow)} to meet SLA deadline ${sla_deadline}. Deprioritized: ${JSON.stringify(freeWindows.filter((w) => w !== chosenWindow))}`
           );
         } else {
+          roundTrace.tie_break_note = `Multiple free windows, none meet SLA deadline ${sla_deadline}; defaulted to the earliest option.`;
           console.log(
             `[${task_id}] Tie-break: multiple free windows but none meet SLA deadline ${sla_deadline}; defaulting to earliest option ${JSON.stringify(chosenWindow)}. All options: ${JSON.stringify(freeWindows)}`
           );
         }
       }
 
+      roundTrace.chosen_window = chosenWindow;
       currentWindow = chosenWindow;
       console.log(
         `[${task_id}] Re-proposing ${JSON.stringify(currentWindow)} to Workday (same task_id)...`
@@ -240,7 +259,8 @@ app.post('/trigger', async (req, res) => {
     outcome: 'escalated',
     rounds: round,
     reason,
-    last_tradeoffs: lastTradeoffs
+    last_tradeoffs: lastTradeoffs,
+    trace
   });
 });
 

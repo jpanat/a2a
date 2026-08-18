@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Recruitment Negotiation Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --panel-border: #2a3450;
+    --text: #e7ebf5;
+    --muted: #94a1c2;
+    --accent: #5b8def;
+    --green: #3ecf8e;
+    --red: #ef5b6b;
+    --amber: #f0b429;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 2rem 1.5rem 4rem;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+  p.subtitle { color: var(--muted); margin-top: 0; margin-bottom: 1.5rem; font-size: 0.9rem; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .card h2 { font-size: 1rem; margin-top: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.3rem; margin-top: 0.9rem; }
+  label:first-of-type { margin-top: 0; }
+  input, select {
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    background: #0d1220;
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  .row { display: flex; gap: 0.75rem; }
+  .row > div { flex: 1; }
+  button {
+    margin-top: 1.25rem;
+    width: 100%;
+    padding: 0.65rem;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  button:not(:disabled):hover { filter: brightness(1.1); }
+  .status { font-size: 0.9rem; color: var(--muted); margin-top: 0.75rem; min-height: 1.2em; }
+  .outcome {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .outcome.accepted { background: rgba(62, 207, 142, 0.15); color: var(--green); }
+  .outcome.escalated { background: rgba(239, 91, 107, 0.15); color: var(--red); }
+  .outcome.error { background: rgba(239, 91, 107, 0.15); color: var(--red); }
+  .summary-line { margin: 0.75rem 0; font-size: 0.9rem; color: var(--muted); }
+  .summary-line b { color: var(--text); }
+  .step {
+    border-left: 2px solid var(--panel-border);
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  .step::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .step h3 { margin: 0 0 0.35rem; font-size: 0.9rem; }
+  .step .type-tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    padding: 0.05rem 0.45rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
+    font-weight: 700;
+  }
+  .type-tag.accept { background: rgba(62, 207, 142, 0.15); color: var(--green); }
+  .type-tag.counter { background: rgba(240, 180, 41, 0.15); color: var(--amber); }
+  .step p { margin: 0.25rem 0; font-size: 0.85rem; color: var(--muted); }
+  .step code { background: #0d1220; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.8rem; }
+  pre {
+    background: #0d1220;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #result { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Recruitment Negotiation Demo</h1>
+  <p class="subtitle">Webex Task Agent &rarr; Workday Recruiting Agent &rarr; Webex Scheduling Agent</p>
+
+  <div class="card">
+    <h2>Trigger a negotiation</h2>
+    <form id="trigger-form">
+      <label for="candidate_id">Candidate scenario</label>
+      <select id="candidate_id">
+        <option value="cand-001">cand-001 — clean accept</option>
+        <option value="cand-002" selected>cand-002 — one round of negotiation</option>
+        <option value="cand-003">cand-003 — forced escalation</option>
+        <option value="custom">Custom candidate_id&hellip;</option>
+      </select>
+      <div id="custom-candidate-wrap" style="display:none;">
+        <label for="custom_candidate_id">Custom candidate_id</label>
+        <input type="text" id="custom_candidate_id" placeholder="e.g. cand-042" />
+      </div>
+
+      <label for="requisition_id">Requisition ID</label>
+      <input type="text" id="requisition_id" value="req-101" />
+
+      <div class="row">
+        <div>
+          <label for="window_start">Proposed window start (UTC)</label>
+          <input type="datetime-local" id="window_start" value="2026-08-20T10:00" />
+        </div>
+        <div>
+          <label for="window_end">Proposed window end (UTC)</label>
+          <input type="datetime-local" id="window_end" value="2026-08-20T11:00" />
+        </div>
+      </div>
+
+      <label for="required_attendees">Required attendees (comma-separated emails)</label>
+      <input type="text" id="required_attendees" value="hiring_manager@example.com" />
+
+      <label for="urgency">Urgency</label>
+      <select id="urgency">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high" selected>High</option>
+      </select>
+
+      <button type="submit" id="submit-btn">Start negotiation</button>
+      <div class="status" id="status"></div>
+    </form>
+  </div>
+
+  <div class="card" id="result">
+    <h2>Result</h2>
+    <div id="result-body"></div>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('trigger-form');
+  const candidateSelect = document.getElementById('candidate_id');
+  const customWrap = document.getElementById('custom-candidate-wrap');
+  const customInput = document.getElementById('custom_candidate_id');
+  const statusEl = document.getElementById('status');
+  const submitBtn = document.getElementById('submit-btn');
+  const resultCard = document.getElementById('result');
+  const resultBody = document.getElementById('result-body');
+
+  candidateSelect.addEventListener('change', () => {
+    customWrap.style.display = candidateSelect.value === 'custom' ? 'block' : 'none';
+  });
+
+  function toIso(datetimeLocalValue) {
+    // datetime-local has no timezone; this demo's mock data is all UTC, so treat the
+    // input as UTC directly rather than the browser's local zone.
+    return new Date(datetimeLocalValue + 'Z').toISOString();
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function fmtWindow(w) {
+    if (!w) return '&mdash;';
+    return `${escapeHtml(w.start)} &rarr; ${escapeHtml(w.end)}`;
+  }
+
+  function renderTrace(trace) {
+    if (!trace || !trace.length) return '';
+    return trace.map((step) => {
+      const typeTag = `<span class="type-tag ${step.workday_response_type}">${escapeHtml(step.workday_response_type)}</span>`;
+      let html = `<div class="step"><h3>Round ${step.round}${typeTag}</h3>`;
+      html += `<p>Proposed: <code>${fmtWindow(step.proposed_window)}</code></p>`;
+      if (step.workday_response_type === 'counter') {
+        const p = step.workday_payload || {};
+        html += `<p>Blocking constraint: <code>${escapeHtml(p.blocking_constraint || 'n/a')}</code></p>`;
+        if (p.sla_deadline) html += `<p>SLA deadline: <code>${escapeHtml(p.sla_deadline)}</code></p>`;
+        if (p.acceptable_windows && p.acceptable_windows.length) {
+          html += `<p>Workday's acceptable windows: ${p.acceptable_windows.map(fmtWindow).join(', ')}</p>`;
+        } else {
+          html += `<p>Workday offered no acceptable windows.</p>`;
+        }
+        if (step.free_windows) {
+          html += `<p>Free for the panel: ${step.free_windows.length ? step.free_windows.map(fmtWindow).join(', ') : 'none'}</p>`;
+        }
+        if (step.tie_break_note) {
+          html += `<p>&#9888; ${escapeHtml(step.tie_break_note)}</p>`;
+        }
+        if (step.chosen_window) {
+          html += `<p>Re-proposing: <code>${fmtWindow(step.chosen_window)}</code></p>`;
+        }
+      } else if (step.workday_response_type === 'accept') {
+        html += `<p>${escapeHtml((step.workday_payload && step.workday_payload.note) || 'Accepted.')}</p>`;
+      }
+      html += `</div>`;
+      return html;
+    }).join('');
+  }
+
+  function renderResult(data, ok) {
+    resultCard.style.display = 'block';
+    if (!ok) {
+      resultBody.innerHTML = `<span class="outcome error">Error</span>
+        <p class="summary-line">${escapeHtml(data.error || 'Request failed.')}</p>`;
+      return;
+    }
+
+    const badgeClass = data.outcome === 'accepted' ? 'accepted' : 'escalated';
+    let html = `<span class="outcome ${badgeClass}">${escapeHtml(data.outcome)}</span>`;
+    html += `<p class="summary-line">Rounds: <b>${data.rounds}</b></p>`;
+
+    if (data.outcome === 'accepted' && data.booking) {
+      html += `<p class="summary-line">Booked window: <b>${fmtWindow(data.booking.window)}</b></p>`;
+      html += `<p class="summary-line">Attendees: <b>${(data.booking.attendees || []).map(escapeHtml).join(', ')}</b></p>`;
+    }
+
+    if (data.outcome === 'escalated') {
+      html += `<p class="summary-line">Reason: <b>${escapeHtml(data.reason)}</b></p>`;
+      if (data.last_tradeoffs) {
+        html += `<p class="summary-line">Last tradeoffs:</p><pre>${escapeHtml(JSON.stringify(data.last_tradeoffs, null, 2))}</pre>`;
+      }
+    }
+
+    html += renderTrace(data.trace);
+    resultBody.innerHTML = html;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const candidate_id = candidateSelect.value === 'custom'
+      ? customInput.value.trim()
+      : candidateSelect.value;
+
+    if (!candidate_id) {
+      statusEl.textContent = 'Enter a candidate_id.';
+      return;
+    }
+
+    const payload = {
+      candidate_id,
+      requisition_id: document.getElementById('requisition_id').value.trim(),
+      proposed_window: {
+        start: toIso(document.getElementById('window_start').value),
+        end: toIso(document.getElementById('window_end').value)
+      },
+      required_attendees: document.getElementById('required_attendees').value
+        .split(',').map((s) => s.trim()).filter(Boolean),
+      urgency: document.getElementById('urgency').value
+    };
+
+    submitBtn.disabled = true;
+    statusEl.textContent = 'Negotiating…';
+    resultCard.style.display = 'none';
+
+    try {
+      const res = await fetch('/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      renderResult(data, res.ok);
+      statusEl.textContent = res.ok ? 'Done.' : 'Request failed.';
+    } catch (err) {
+      renderResult({ error: err.message }, false);
+      statusEl.textContent = 'Request failed.';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
