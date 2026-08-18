@@ -1,0 +1,32 @@
+{
+  "$comment": "Reference schema for messages exchanged between agents in this demo. The workday-recruiting-agent-mock already implements this shape. The two stub agents must produce/consume it too.",
+  "task_id": "string (uuid) — same value reused across all rounds of one negotiation",
+  "from_agent": "webex-task-agent | webex-scheduling-agent | workday-recruiting-agent",
+  "to_agent": "webex-task-agent | webex-scheduling-agent | workday-recruiting-agent",
+  "type": "propose | counter | accept | escalate",
+  "payload": {
+    "candidate_id": "string",
+    "requisition_id": "string",
+    "proposed_window": { "start": "ISO8601", "end": "ISO8601" },
+    "required_attendees": ["string (email)"],
+    "urgency": "low | medium | high",
+
+    "_counter_only_fields": {
+      "round": "integer",
+      "blocking_constraint": "string",
+      "acceptable_windows": [{ "start": "ISO8601", "end": "ISO8601" }],
+      "sla_deadline": "ISO8601 | null"
+    },
+
+    "_accept_only_fields": {
+      "accepted_window": { "start": "ISO8601", "end": "ISO8601" },
+      "note": "string"
+    },
+
+    "_escalate_only_fields": {
+      "reason": "string",
+      "rounds_attempted": "integer",
+      "last_tradeoffs": "object — whatever the last counter contained"
+    }
+  }
+}

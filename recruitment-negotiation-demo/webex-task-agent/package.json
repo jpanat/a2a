@@ -1,0 +1,13 @@
+{
+  "name": "webex-task-agent",
+  "version": "0.1.0",
+  "description": "STUB — implement per /CLAUDE.md. Picks up a meeting action item and drives the interview scheduling negotiation with the Workday Recruiting Agent and Webex Scheduling Agent.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^2.7.0"
+  }
+}

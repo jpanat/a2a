@@ -1,0 +1,28 @@
+{
+  "name": "workday-recruiting-agent-mock",
+  "description": "Mock Workday Recruiting Agent for prototype negotiation testing. Enforces candidate pipeline SLA and required interview panel attendees. Stands in for real Workday Agent Gateway access.",
+  "url": "http://localhost:4000",
+  "version": "0.1.0",
+  "provider": {
+    "organization": "Prototype / Mock",
+    "url": "https://example.com"
+  },
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "evaluate-interview-proposal",
+      "name": "Evaluate interview scheduling proposal",
+      "description": "Accepts or counters a proposed interview window based on candidate pipeline stage requirements, required panel attendees, and hiring SLA deadline.",
+      "tags": ["recruiting", "scheduling", "negotiation"],
+      "examples": [
+        "Evaluate a proposed Friday 2pm slot for candidate cand-002 against required attendees and SLA.",
+        "Return a counter-proposal listing acceptable windows when the hiring manager is unavailable."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "cand-001": {
+    "behavior": "accept_if_attendees_met",
+    "required_attendees": ["hiring_manager@example.com"],
+    "accept_note": "Clean accept: proposal already satisfies required panel and SLA."
+  },
+  "cand-002": {
+    "behavior": "counter_once_then_accept",
+    "blocking_constraint": "hiring_manager_unavailable",
+    "required_attendees": [
+      "hiring_manager@example.com",
+      "tech_interviewer_1@example.com"
+    ],
+    "acceptable_windows": [
+      { "start": "2026-08-21T15:00:00Z", "end": "2026-08-21T16:00:00Z" },
+      { "start": "2026-08-22T09:00:00Z", "end": "2026-08-22T10:00:00Z" }
+    ],
+    "sla_deadline": "2026-08-23T00:00:00Z"
+  },
+  "cand-003": {
+    "behavior": "always_counter",
+    "blocking_constraint": "full_panel_required_no_slot_found",
+    "required_attendees": [
+      "hiring_manager@example.com",
+      "tech_interviewer_1@example.com",
+      "tech_interviewer_2@example.com"
+    ],
+    "acceptable_windows": [],
+    "sla_deadline": "2026-08-19T00:00:00Z"
+  },
+  "default": {
+    "behavior": "always_counter",
+    "blocking_constraint": "unknown_candidate_defaulting_to_manual_review",
+    "required_attendees": ["hiring_manager@example.com"],
+    "acceptable_windows": []
+  }
+}

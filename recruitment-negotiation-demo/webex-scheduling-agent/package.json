@@ -1,0 +1,12 @@
+{
+  "name": "webex-scheduling-agent",
+  "version": "0.1.0",
+  "description": "STUB — implement per /CLAUDE.md. Owns real calendar availability and books the final agreed slot.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

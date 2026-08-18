@@ -1,0 +1,16 @@
+{
+  "name": "recruitment-negotiation-demo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Three-agent negotiation demo: Webex Task Agent + Webex Scheduling Agent + mock Workday Recruiting Agent, negotiating a candidate interview slot.",
+  "scripts": {
+    "install:all": "npm install --prefix workday-recruiting-agent-mock && npm install --prefix webex-task-agent && npm install --prefix webex-scheduling-agent && npm install",
+    "start:workday": "npm start --prefix workday-recruiting-agent-mock",
+    "start:task": "npm start --prefix webex-task-agent",
+    "start:scheduling": "npm start --prefix webex-scheduling-agent",
+    "start:all": "concurrently -n workday,task,scheduling -c blue,green,yellow \"npm run start:workday\" \"npm run start:task\" \"npm run start:scheduling\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

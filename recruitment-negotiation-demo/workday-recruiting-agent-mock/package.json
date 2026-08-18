@@ -1,0 +1,12 @@
+{
+  "name": "workday-recruiting-agent-mock",
+  "version": "0.1.0",
+  "description": "Mock A2A server standing in for a Workday Recruiting Agent, for prototyping cross-vendor negotiation with Webex agents.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
