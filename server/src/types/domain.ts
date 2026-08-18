@@ -100,6 +100,10 @@ export interface TranscriptMessage {
     | "intent"
     | "resolution"
     | "escalation"
+    /** Resolving which agent/service identity represents each human sender, before anything else happens. */
+    | "identity"
+    /** Aligning what an ambiguous term in the ask actually means (urgency level, "required" attendee, priority tier) before locking it into the shared intent object. */
+    | "term-alignment"
     /** The cognition engine found the candidate slot doesn't match the shared intent (wrong window, wrong duration, ...). */
     | "drift"
     /** The cognition engine (or a mediator) corrected course back to an intent-compliant slot. */

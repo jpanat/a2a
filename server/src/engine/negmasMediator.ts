@@ -19,7 +19,7 @@ import {
 } from "../types/domain";
 import { formatSlot, statusAt } from "./calendarUtil";
 import { Candidate, buildCandidates, candidateKey, hoursFromNow, isFreeForAgent, scoreCandidates } from "./jointReasoning";
-import { agentLabel, discoveryStage, fromFor, intentStage, ontologyStage } from "./stages";
+import { agentLabel, discoveryStage, fromFor, identityResolutionStage, intentStage, ontologyStage, termAlignmentStage } from "./stages";
 import { finalize } from "./withIoc";
 
 const MAX_LOOP_ROUNDS = 6;
@@ -45,11 +45,15 @@ export async function runLoopThenMediateDemo(scenario: NegotiationScenario, poli
   const tick = () => new Date(startedAt.getTime() + round * 25_000).toISOString();
   const { homeAgent, partnerAgent, intent } = scenario;
 
+  transcript.push(...identityResolutionStage(scenario, round, tick));
+  round++;
   const discovery = discoveryStage(scenario, policy, round, tick);
   transcript.push(...discovery.messages);
   if (discovery.escalated) return finalize(scenario, startedAt, round, transcript, "escalated", undefined);
   round++;
   transcript.push(...ontologyStage(scenario, round, tick));
+  round++;
+  transcript.push(...termAlignmentStage(scenario, round, tick));
   round++;
   transcript.push(...intentStage(scenario, round, tick));
   round++;

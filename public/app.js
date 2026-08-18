@@ -453,7 +453,13 @@ function perfClass(performative) {
   if (performative === "PROPOSE" || performative === "MEDIATE_OFFER") return "perf-propose";
   if (performative === "REJECT_PROPOSAL" || performative === "FAILURE" || performative === "FAILURE_CYCLE") return "perf-reject";
   if (performative === "CONFIRM" || performative === "MEDIATE_ACCEPT") return "perf-confirm";
-  if (performative === "INFORM_ONTOLOGY" || performative === "INFORM_INTENT") return "perf-context";
+  if (
+    performative === "INFORM_ONTOLOGY" ||
+    performative === "INFORM_INTENT" ||
+    performative === "INFORM_IDENTITY" ||
+    performative === "INFORM_TERMS"
+  )
+    return "perf-context";
   if (performative === "INFORM_DRIFT") return "perf-drift";
   if (performative === "REALIGN") return "perf-realign";
   return "perf-neutral";

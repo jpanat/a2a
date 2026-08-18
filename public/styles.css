@@ -143,6 +143,8 @@ select, input[type=text] {
 .tmsg.kind-resolution { border-left-color: var(--good); background: var(--good-bg); }
 .tmsg.kind-mapping { background: #f6f2fb; }
 .tmsg.kind-intent { background: #f2f7ff; }
+.tmsg.kind-identity { background: #eef4fb; }
+.tmsg.kind-term-alignment { background: #fff7e6; }
 
 /* ---------- Admin view ---------- */
 .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }

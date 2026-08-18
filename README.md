@@ -136,34 +136,59 @@ same time as the other, or - a real, not-contrived outcome - they exhaust
 every candidate in the stated windows and the negotiation escalates to the
 humans.
 
-**With IoC** (`server/src/engine/withIoc.ts`) runs five explicit stages:
+**With IoC** (`server/src/engine/withIoc.ts`, stage builders shared from
+`server/src/engine/stages.ts`) runs these explicit stages:
 
-1. **Identity & discovery** - agents authenticate and confirm a trust
-   relationship exists between the two orgs (a lookup against a static
-   trusted-orgs list). No trust, no negotiation - it escalates right here,
-   before any calendar or intent data is even exchanged.
-2. **Shared ontology grounding** - each agent maps its own calendar
+1. **Identity resolution** - before anything else, figure out *who's
+   actually negotiating*: which agent/service identity represents each
+   human sender, and which tenant's IAM it authenticates against. This runs
+   even for the intra-org scenario (two employees still need two distinct
+   agent identities resolved) - it's genuinely separate from step 2, which
+   is about the *orgs'* relationship, not the *agents'* identities.
+2. **Discovery & trust** - now that both identities are resolved, confirm a
+   trust relationship exists between the two orgs (a lookup against a
+   static trusted-orgs list). No trust, no negotiation - it escalates right
+   here, before any calendar or intent data is exchanged.
+3. **Shared ontology grounding** - each agent maps its own calendar
    vocabulary into one shared schema (`hard-busy` / `soft-busy` /
    `available`) before anything else happens. This step is shown explicitly
    in the transcript, e.g. `tentative-hold -> soft-busy`.
-3. **Shared intent exchange** - both agents build one structured intent
-   object from the email thread: goal, urgency, required attendees,
-   duration.
-4. **Joint constraint negotiation** - instead of proposing slots one at a
+4. **Term alignment** - before locking anything into the shared intent
+   object, both agents ground what its *ambiguous, qualitative* terms
+   actually mean - the same failure mode ontology grounding fixes for
+   calendar vocab, but applied to the request's own language instead of
+   calendar status labels. "Medium" urgency gets an operational definition
+   (should land within the stated windows this week, a short slip is
+   tolerable), "required attendee" gets one too (don't book without them
+   unless they explicitly decline), and each side's priority tier is named
+   as a pre-agreed, org-level scale from federation setup - not something
+   renegotiated per meeting. Skipping this is exactly how two agents can
+   each silently assume a different meaning for "medium" and still both
+   claim they're using the shared intent object correctly.
+5. **Shared intent exchange** - with those terms grounded, both agents
+   assemble one structured intent object from the email thread: goal,
+   urgency, required attendees, duration.
+6. **Joint constraint negotiation** - instead of proposing slots one at a
    time, the engine scores *every* candidate slot across *both* calendars in
    a single pass, in the shared schema, and can produce an option neither
    side stated explicitly (e.g. a slot 30 minutes shorter than the naive
    default, sitting on top of someone's soft-busy hold that the ontology
    confirms is movable).
-5. **Resolution & write-back** - the winning slot gets "written" to both
+7. **Resolution & write-back** - the winning slot gets "written" to both
    mock calendars and a join link is generated.
 
-With-IoC mode does **not** always succeed - it's built to fail two different
-ways so the demo has a visible, honest failure path even with the full
-protocol: a partner org that isn't yet trusted escalates at stage 1, and an
-urgent same-day ask that violates one side's notice-period policy escalates
-at stage 4 even after ontology and intent are fully grounded. Roughly a
-third of the seeded audit log is escalations, not five-star successes.
+With-IoC mode does **not** always succeed - it's built with real failure
+paths, not just a happy path with a facade. A partner org that isn't yet
+trusted escalates at stage 2, before any calendar data is exchanged at all;
+an ask whose deadline collides with a notice-period policy escalates at
+stage 6, even after identity, ontology, and intent are all fully grounded.
+Neither of the two seeded scenarios triggers these specific cases today (the
+trust-gate and notice-period example scenarios were trimmed - see
+[Live Protocol: four dynamics](#live-protocol-four-dynamics)), but both code
+paths are real and reachable: flip Microsoft's trust status to "pending
+review" in the admin view and rerun the flagship scenario, or build a
+same-day, notice-violating ask in the Conflict Lab, and either one escalates
+exactly as described.
 
 ## Live Protocol: four dynamics
 

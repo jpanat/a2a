@@ -15,6 +15,8 @@ const PERFORMATIVE_BY_KIND: Record<TranscriptMessage["kind"], string> = {
   mapping: "INFORM_ONTOLOGY",
   intent: "INFORM_INTENT",
   info: "INFORM",
+  identity: "INFORM_IDENTITY",
+  "term-alignment": "INFORM_TERMS",
   drift: "INFORM_DRIFT",
   realignment: "REALIGN",
   "loop-detected": "FAILURE_CYCLE",

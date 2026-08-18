@@ -17,7 +17,7 @@ import { DataSharingPolicy, NegotiationScenario, NegotiationSession, ProposedSlo
 import { formatSlot } from "./calendarUtil";
 import { buildCandidates, hoursFromNow, scoreCandidates } from "./jointReasoning";
 import { activeReasonerMode, explainResolution } from "./reasoner";
-import { discoveryStage, intentStage, ontologyStage } from "./stages";
+import { discoveryStage, identityResolutionStage, intentStage, ontologyStage, termAlignmentStage } from "./stages";
 
 export async function runWithIoc(scenario: NegotiationScenario, policy: DataSharingPolicy): Promise<NegotiationSession> {
   const startedAt = new Date();
@@ -26,7 +26,10 @@ export async function runWithIoc(scenario: NegotiationScenario, policy: DataShar
   const tick = () => new Date(startedAt.getTime() + round * 20_000).toISOString();
   const { homeAgent, partnerAgent } = scenario;
 
-  // (a) Identity & discovery
+  // (a) Identity & discovery - who's negotiating, then whether their orgs trust each other.
+  transcript.push(...identityResolutionStage(scenario, round, tick));
+  round++;
+
   const discovery = discoveryStage(scenario, policy, round, tick);
   transcript.push(...discovery.messages);
   if (discovery.escalated) {
@@ -38,8 +41,10 @@ export async function runWithIoc(scenario: NegotiationScenario, policy: DataShar
   transcript.push(...ontologyStage(scenario, round, tick));
   round++;
 
-  // (c) Shared intent exchange
+  // (c) Shared intent exchange - ground the ambiguous terms first, then assemble the object.
   const intent = scenario.intent;
+  transcript.push(...termAlignmentStage(scenario, round, tick));
+  round++;
   transcript.push(...intentStage(scenario, round, tick));
   round++;
 

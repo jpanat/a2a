@@ -10,7 +10,7 @@ import { DataSharingPolicy, NegotiationScenario, NegotiationSession, ProposedSlo
 import { formatSlot } from "./calendarUtil";
 import { FULL_WEEK_WINDOWS, ScoredCandidate, buildCandidates, hoursFromNow, inWindows, scoreCandidates } from "./jointReasoning";
 import { explainResolution } from "./reasoner";
-import { discoveryStage, intentStage, ontologyStage } from "./stages";
+import { discoveryStage, identityResolutionStage, intentStage, ontologyStage, termAlignmentStage } from "./stages";
 import { finalize } from "./withIoc";
 
 function slotFrom(candidate: ScoredCandidate, durationMinutes: number): ProposedSlot {
@@ -30,6 +30,9 @@ export async function runDriftDemo(scenario: NegotiationScenario, policy: DataSh
   const tick = () => new Date(startedAt.getTime() + round * 20_000).toISOString();
   const { homeAgent, partnerAgent, intent } = scenario;
 
+  transcript.push(...identityResolutionStage(scenario, round, tick));
+  round++;
+
   const discovery = discoveryStage(scenario, policy, round, tick);
   transcript.push(...discovery.messages);
   if (discovery.escalated) return finalize(scenario, startedAt, round, transcript, "escalated", undefined);
@@ -38,6 +41,8 @@ export async function runDriftDemo(scenario: NegotiationScenario, policy: DataSh
   transcript.push(...ontologyStage(scenario, round, tick));
   round++;
 
+  transcript.push(...termAlignmentStage(scenario, round, tick));
+  round++;
   transcript.push(...intentStage(scenario, round, tick));
   round++;
 
