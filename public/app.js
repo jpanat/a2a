@@ -153,6 +153,8 @@ const STAGE_LABELS = {
   resolution: "Resolution",
   "baseline-exchange": "Baseline exchange",
   escalation: "Escalation",
+  "cognition-check": "Cognition check",
+  "negmas-mediation": "NegMAS mediation",
 };
 
 function renderTranscript(transcript) {
@@ -174,7 +176,7 @@ function outcomeBadge(session) {
 }
 
 // ---------------- Router ----------------
-const routes = { "end-user": renderEndUser, compare: renderCompare, lab: renderLab, admin: renderAdmin };
+const routes = { "end-user": renderEndUser, compare: renderCompare, protocol: renderProtocol, lab: renderLab, admin: renderAdmin };
 
 function currentRoute() {
   const hash = location.hash.replace(/^#\//, "");
@@ -404,6 +406,246 @@ function compareColumn(cls, title, session) {
       ${renderTranscript(session.transcript)}
     </div>
   `;
+}
+
+// ================= LIVE PROTOCOL =================
+// Streams the actual A2A-style protocol frames (performative, sender ->
+// receiver, machine-readable content) into the page one at a time, instead
+// of dumping the whole transcript at once - so it reads like a live log
+// rather than a static report. Every frame comes straight from the engine;
+// nothing here is scripted for effect.
+let protocolState = { scenarios: [], scenarioId: "outshift-microsoft-api-review", tab: "live", liveMode: "with-ioc", streamHandle: null };
+
+function streamFrames(containerEl, frames, renderFn, delayMs, onDone) {
+  let i = 0;
+  let stopped = false;
+  function appendOne(f, idx) {
+    containerEl.insertAdjacentHTML("beforeend", renderFn(f, idx));
+    containerEl.scrollTop = containerEl.scrollHeight;
+  }
+  function step() {
+    if (stopped) return;
+    if (i >= frames.length) {
+      if (onDone) onDone();
+      return;
+    }
+    appendOne(frames[i], i);
+    i++;
+    setTimeout(step, delayMs);
+  }
+  step();
+  return {
+    skip() {
+      stopped = true;
+      while (i < frames.length) {
+        appendOne(frames[i], i);
+        i++;
+      }
+      if (onDone) onDone();
+    },
+    cancel() {
+      stopped = true;
+    },
+  };
+}
+
+function perfClass(performative) {
+  if (performative === "PROPOSE" || performative === "MEDIATE_OFFER") return "perf-propose";
+  if (performative === "REJECT_PROPOSAL" || performative === "FAILURE" || performative === "FAILURE_CYCLE") return "perf-reject";
+  if (performative === "CONFIRM" || performative === "MEDIATE_ACCEPT") return "perf-confirm";
+  if (performative === "INFORM_ONTOLOGY" || performative === "INFORM_INTENT") return "perf-context";
+  if (performative === "INFORM_DRIFT") return "perf-drift";
+  if (performative === "REALIGN") return "perf-realign";
+  return "perf-neutral";
+}
+
+function renderFrameLine(frame) {
+  const receiverLabel = frame.receiver === "broadcast" ? "both" : frame.receiver;
+  let extra = "";
+  if (frame.performative === "MEDIATE_OFFER" && Array.isArray(frame.content.clearing) && frame.content.clearing.length) {
+    extra = `<div class="utility-table">${frame.content.clearing
+      .map(
+        (c) =>
+          `<div class="utility-row"><span>${esc(c.slot)}</span><span>home ${c.homeUtility.toFixed(2)}</span><span>partner ${c.partnerUtility.toFixed(2)}</span></div>`
+      )
+      .join("")}</div>`;
+  }
+  return `
+    <div class="logline ${perfClass(frame.performative)}">
+      <div class="logline-head">
+        <span class="seq">#${frame.seq}</span>
+        <span class="perf">${esc(frame.performative)}</span>
+        <span class="route">${esc(frame.sender)} &rarr; ${esc(receiverLabel)}</span>
+        <span class="stage-tag">${esc(STAGE_LABELS[frame.stage] || frame.stage)}</span>
+      </div>
+      <div class="logline-text">${esc(frame.text)}</div>
+      ${extra}
+    </div>`;
+}
+
+function outcomeFooter(session) {
+  const outcome =
+    session.status === "agreed"
+      ? `<span class="badge good">Agreed</span> ${esc(session.proposedSlot ? session.proposedSlot.dateLabel : "")}`
+      : `<span class="badge warn">Escalated to humans</span>`;
+  return `<div class="protocol-outcome">${outcome} &middot; ${session.transcript.length} message(s) &middot; ${fmtDuration(session.durationMs)}</div>`;
+}
+
+function attachSkipButton(container) {
+  const btn = container.querySelector("#skip-stream");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      if (protocolState.streamHandle) protocolState.streamHandle.skip();
+    });
+  }
+}
+
+function protocolTabButton(key, label) {
+  return `<button class="protocol-tab ${protocolState.tab === key ? "active" : ""}" data-tab="${key}">${esc(label)}</button>`;
+}
+
+async function renderProtocol() {
+  if (!protocolState.scenarios.length) {
+    const all = await apiGet("/scenarios");
+    protocolState.scenarios = all.filter((s) => !s.isIntraOrg);
+  }
+
+  app.innerHTML = `
+    <h1>Live Protocol</h1>
+    <p class="subtitle">The actual agent-to-agent protocol frames exchanged between a Webex agent and a Microsoft Copilot agent - streamed in as they happen, including what happens when the search drifts from the ask, gets stuck in a loop, or a calendar changes out from under an already-agreed slot. Webex &lt;-&gt; Copilot only for now.</p>
+    <div class="panel">
+      <label>Scenario
+        <select id="protocol-scenario">
+          ${protocolState.scenarios.map((s) => `<option value="${s.id}" ${s.id === protocolState.scenarioId ? "selected" : ""}>${esc(s.title)}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <div class="protocol-tabs">
+      ${protocolTabButton("live", "Live A2A Trace")}
+      ${protocolTabButton("drift", "Drift &amp; Correction")}
+      ${protocolTabButton("loop", "Endless Loop &rarr; NegMAS")}
+      ${protocolTabButton("emergent", "T+1 Emergent Conflict")}
+    </div>
+    <div id="protocol-tab-content" class="panel protocol-panel"></div>
+  `;
+
+  document.getElementById("protocol-scenario").addEventListener("change", (e) => {
+    protocolState.scenarioId = e.target.value;
+    loadProtocolTab();
+  });
+  app.querySelectorAll(".protocol-tab").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      protocolState.tab = btn.dataset.tab;
+      renderProtocol();
+    })
+  );
+
+  await loadProtocolTab();
+}
+
+async function loadProtocolTab() {
+  if (protocolState.streamHandle) protocolState.streamHandle.cancel();
+  const container = document.getElementById("protocol-tab-content");
+  if (!container) return;
+  container.innerHTML = `<p class="loading">Running the negotiation...</p>`;
+  try {
+    if (protocolState.tab === "live") await renderLiveTab(container);
+    else if (protocolState.tab === "drift") await renderDriftTab(container);
+    else if (protocolState.tab === "loop") await renderLoopTab(container);
+    else if (protocolState.tab === "emergent") await renderEmergentTab(container);
+  } catch (err) {
+    container.innerHTML = `<p><strong>Error:</strong> ${esc(err.message)}</p>`;
+  }
+}
+
+async function renderLiveTab(container) {
+  container.innerHTML = `
+    <p class="protocol-tab-intro">The standard five-stage CSP protocol (or the without-IoC baseline), shown as the actual sender/receiver frames instead of prose.</p>
+    <div class="protocol-toolbar">
+      <label class="lab-checkbox"><input type="checkbox" id="live-mode-toggle" ${protocolState.liveMode === "without-ioc" ? "checked" : ""}/> Show the without-IoC baseline instead of CSP</label>
+      <button class="small ghost" id="skip-stream">Skip to end</button>
+    </div>
+    <div class="protocol-log" id="protocol-log"></div>
+  `;
+  attachSkipButton(container);
+  document.getElementById("live-mode-toggle").addEventListener("change", (e) => {
+    protocolState.liveMode = e.target.checked ? "without-ioc" : "with-ioc";
+    loadProtocolTab();
+  });
+  const data = await apiGet(`/demo/live/${protocolState.scenarioId}?mode=${protocolState.liveMode}`);
+  const logEl = document.getElementById("protocol-log");
+  protocolState.streamHandle = streamFrames(logEl, data.session.protocolFrames, renderFrameLine, 420, () => {
+    logEl.insertAdjacentHTML("beforeend", outcomeFooter(data.session));
+  });
+}
+
+async function renderDriftTab(container) {
+  container.innerHTML = `
+    <p class="protocol-tab-intro">This joint-negotiation pass searches the <em>whole week</em>, not just the windows the humans stated, optimizing purely for calendar fit. A cognition engine then checks the result against the original shared intent object and corrects course if it drifted.</p>
+    <div class="protocol-toolbar"><button class="small ghost" id="skip-stream">Skip to end</button></div>
+    <div class="protocol-log" id="protocol-log"></div>
+  `;
+  attachSkipButton(container);
+  const data = await apiGet(`/demo/drift/${protocolState.scenarioId}`);
+  const logEl = document.getElementById("protocol-log");
+  protocolState.streamHandle = streamFrames(logEl, data.session.protocolFrames, renderFrameLine, 480, () => {
+    logEl.insertAdjacentHTML("beforeend", outcomeFooter(data.session));
+  });
+}
+
+async function renderLoopTab(container) {
+  container.innerHTML = `
+    <p class="protocol-tab-intro">Both agents ground the same shared intent, but this strategy is rigid: each side always re-offers its own favorite slot. With two mutually infeasible favorites, that never converges on its own - watch it get caught and handed to a lightweight, NegMAS-style concession mediator (a simulation of NegMAS's alternating-offers idea, not the real Python library).</p>
+    <div class="protocol-toolbar"><button class="small ghost" id="skip-stream">Skip to end</button></div>
+    <div class="protocol-log" id="protocol-log"></div>
+  `;
+  attachSkipButton(container);
+  const data = await apiGet(`/demo/loop/${protocolState.scenarioId}`);
+  const logEl = document.getElementById("protocol-log");
+  protocolState.streamHandle = streamFrames(logEl, data.session.protocolFrames, renderFrameLine, 380, () => {
+    logEl.insertAdjacentHTML("beforeend", outcomeFooter(data.session));
+  });
+}
+
+async function renderEmergentTab(container) {
+  container.innerHTML = `
+    <p class="protocol-tab-intro">First the negotiation resolves normally at T0. Then, at T+1, a brand-new calendar event lands for one side - something neither agent could have known about - landing right on the slot they just agreed to. Watch what CSP mode does about it.</p>
+    <h3>T0 - Initial negotiation</h3>
+    <div class="protocol-toolbar"><button class="small ghost" id="skip-stream">Skip to end</button></div>
+    <div class="protocol-log" id="protocol-log-t0"></div>
+    <div id="emergent-marker"></div>
+    <div id="t1-section"></div>
+  `;
+  attachSkipButton(container);
+  const data = await apiGet(`/demo/emergent/${protocolState.scenarioId}`);
+  const t0LogEl = document.getElementById("protocol-log-t0");
+
+  function startT1() {
+    const marker = document.getElementById("emergent-marker");
+    if (!data.t1 || !data.emergentEvent) {
+      marker.innerHTML = `<p class="loading">This scenario didn't resolve at T0, so there's nothing for a sudden event to land on.</p>`;
+      return;
+    }
+    marker.innerHTML = `
+      <div class="time-marker">T+1 &middot; time advances</div>
+      <div class="emergent-banner">
+        <strong>Sudden calendar event landed for ${esc(data.emergentEvent.affectedPersonName)}:</strong>
+        "${esc(data.emergentEvent.block.label)}" on ${esc(data.emergentEvent.block.day)} ${esc(data.emergentEvent.block.start)}-${esc(data.emergentEvent.block.end)} -
+        exactly overlapping the slot that was just agreed. Neither agent could have known about this when they negotiated.
+      </div>
+    `;
+    const t1Section = document.getElementById("t1-section");
+    t1Section.innerHTML = `<h3>T+1 - Automatic re-negotiation</h3><div class="protocol-log" id="protocol-log-t1"></div>`;
+    const t1LogEl = document.getElementById("protocol-log-t1");
+    protocolState.streamHandle = streamFrames(t1LogEl, data.t1.protocolFrames, renderFrameLine, 420, () => {
+      t1LogEl.insertAdjacentHTML("beforeend", outcomeFooter(data.t1));
+    });
+  }
+
+  protocolState.streamHandle = streamFrames(t0LogEl, data.t0.protocolFrames, renderFrameLine, 420, () => {
+    t0LogEl.insertAdjacentHTML("beforeend", outcomeFooter(data.t0));
+    startT1();
+  });
 }
 
 // ================= CONFLICT LAB =================

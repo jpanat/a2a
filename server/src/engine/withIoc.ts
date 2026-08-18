@@ -13,65 +13,11 @@
 // (b) collapses to a single line when both agents already share a vocabulary
 // - isolating how much of CSP's value is shared intent + joint reasoning
 // alone, independent of vocabulary translation.
-import { getOrg, resolveOrgName } from "../data/orgs";
-import {
-  AgentProfile,
-  DataSharingPolicy,
-  Day,
-  NegotiationScenario,
-  NegotiationSession,
-  ProposedSlot,
-  SharedStatus,
-  TranscriptMessage,
-} from "../types/domain";
-import { DAY_OFFSET, addMinutes, formatSlot, statusAt } from "./calendarUtil";
-import { ontologyMappingLines, toSharedStatus } from "./ontology";
+import { DataSharingPolicy, NegotiationScenario, NegotiationSession, ProposedSlot, TranscriptMessage } from "../types/domain";
+import { formatSlot } from "./calendarUtil";
+import { buildCandidates, hoursFromNow, scoreCandidates } from "./jointReasoning";
 import { activeReasonerMode, explainResolution } from "./reasoner";
-
-interface Candidate {
-  day: Day;
-  start: string;
-  end: string;
-  windowLabel: string;
-}
-
-function buildCandidates(scenario: NegotiationScenario, durationMinutes: number): Candidate[] {
-  const out: Candidate[] = [];
-  for (const w of scenario.statedWindows) {
-    let t = toMin(w.start);
-    const end = toMin(w.end);
-    while (t + durationMinutes <= end) {
-      const start = fromMin(t);
-      out.push({ day: w.day, start, end: addMinutes(start, durationMinutes), windowLabel: w.label });
-      t += 30;
-    }
-  }
-  return out;
-}
-function toMin(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-}
-function fromMin(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-function hoursFromNow(scenario: NegotiationScenario, c: Candidate): number {
-  const nowOffset = scenario.simulatedNowOffsetHours ?? 240;
-  return nowOffset + DAY_OFFSET[c.day] * 24 + toMin(c.start) / 60;
-}
-
-function agentKindLabel(kind: AgentProfile["kind"]): string {
-  return kind === "webex" ? "Webex agent" : "Copilot agent";
-}
-function label(agent: AgentProfile): string {
-  return `${agent.personName} (${agentKindLabel(agent.kind)})`;
-}
-function fromFor(agent: AgentProfile): TranscriptMessage["from"] {
-  return agent.kind === "webex" ? "webex-agent" : "copilot-agent";
-}
+import { discoveryStage, intentStage, ontologyStage } from "./stages";
 
 export async function runWithIoc(scenario: NegotiationScenario, policy: DataSharingPolicy): Promise<NegotiationSession> {
   const startedAt = new Date();
@@ -81,126 +27,28 @@ export async function runWithIoc(scenario: NegotiationScenario, policy: DataShar
   const { homeAgent, partnerAgent } = scenario;
 
   // (a) Identity & discovery
-  if (scenario.isIntraOrg) {
-    transcript.push({
-      round,
-      stage: "discovery",
-      from: "system",
-      kind: "info",
-      text: `${label(homeAgent)} and ${label(partnerAgent)} both belong to ${resolveOrgName(
-        scenario.homeOrgId
-      )} - no cross-org trust or federation check is needed, so negotiation proceeds straight to grounding.`,
-      timestamp: tick(),
-    });
-  } else {
-    const partnerOrg = getOrg(scenario.partnerOrgId);
-    transcript.push({
-      round,
-      stage: "discovery",
-      from: "system",
-      kind: "info",
-      text: `${label(homeAgent)} (${resolveOrgName(scenario.homeOrgId)}) and ${label(partnerAgent)} (${
-        partnerOrg?.name ?? scenario.partnerOrgId
-      }) authenticate and look up an existing trust relationship.`,
-      timestamp: tick(),
-    });
-
-    if (!partnerOrg || partnerOrg.trustStatus !== "trusted") {
-      transcript.push({
-        round,
-        stage: "discovery",
-        from: "system",
-        kind: "escalation",
-        text:
-          `No established trust relationship found for ${partnerOrg?.name ?? scenario.partnerOrgId} ` +
-          `(status: ${partnerOrg?.trustStatus ?? "unknown"}). Per policy, agents cannot exchange calendar or intent data ` +
-          `without a trusted federation - escalating to humans for manual scheduling and admin review.`,
-        timestamp: tick(),
-      });
-      return finalize(scenario, startedAt, round, transcript, "escalated", undefined);
-    }
-
-    transcript.push({
-      round,
-      stage: "discovery",
-      from: "system",
-      kind: "info",
-      text: `Trust confirmed. Data-sharing policy in effect: free/busy ${flag(policy.freeBusy)}, ` +
-        `priority tier ${flag(policy.priorityTier)}, meeting titles/attendees ${flag(
-          policy.meetingTitlesAndAttendees
-        )}, human approval before send ${policy.humanApprovalBeforeSend ? "always on" : "off"}.`,
-      timestamp: tick(),
-    });
+  const discovery = discoveryStage(scenario, policy, round, tick);
+  transcript.push(...discovery.messages);
+  if (discovery.escalated) {
+    return finalize(scenario, startedAt, round, transcript, "escalated", undefined);
   }
   round++;
 
   // (b) Shared ontology grounding
-  if (homeAgent.kind === partnerAgent.kind) {
-    transcript.push({
-      round,
-      stage: "ontology-grounding",
-      from: "system",
-      kind: "mapping",
-      text: `Both agents already speak the same vocabulary (${homeAgent.kind === "webex" ? "Webex" : "Copilot"}) - ` +
-        `grounding is a no-op here. Any value CSP adds in this negotiation has to come from shared intent and joint reasoning, not translation.`,
-      timestamp: tick(),
-    });
-  } else {
-    transcript.push({
-      round,
-      stage: "ontology-grounding",
-      from: fromFor(homeAgent),
-      kind: "mapping",
-      text: `${label(homeAgent)} grounds its vocabulary into the shared schema: ${ontologyMappingLines(homeAgent.kind).join(", ")}.`,
-      timestamp: tick(),
-    });
-    transcript.push({
-      round,
-      stage: "ontology-grounding",
-      from: fromFor(partnerAgent),
-      kind: "mapping",
-      text: `${label(partnerAgent)} grounds its vocabulary into the shared schema: ${ontologyMappingLines(partnerAgent.kind).join(", ")}.`,
-      timestamp: tick(),
-    });
-  }
+  transcript.push(...ontologyStage(scenario, round, tick));
   round++;
 
   // (c) Shared intent exchange
   const intent = scenario.intent;
-  transcript.push({
-    round,
-    stage: "intent-exchange",
-    from: "system",
-    kind: "intent",
-    text:
-      `Both agents parse the email thread into one shared intent object: goal "${intent.goal}", ` +
-      `urgency ${intent.urgency}, required attendees [${intent.requiredAttendees.join(", ")}], ` +
-      `duration ${intent.durationMinutes} min, candidate windows [${intent.candidateWindows.join(", ")}].`,
-    data: { ...intent },
-    timestamp: tick(),
-  });
+  transcript.push(...intentStage(scenario, round, tick));
   round++;
 
   // (d) Joint constraint negotiation - reason over both calendars together in one pass.
-  const allCandidates = buildCandidates(scenario, intent.durationMinutes);
+  const allCandidates = buildCandidates(scenario.statedWindows, intent.durationMinutes);
   const noticeFiltered = allCandidates.filter(
-    (c) =>
-      hoursFromNow(scenario, c) >= homeAgent.notice.minNoticeHours &&
-      hoursFromNow(scenario, c) >= partnerAgent.notice.minNoticeHours
+    (c) => hoursFromNow(scenario, c) >= homeAgent.notice.minNoticeHours && hoursFromNow(scenario, c) >= partnerAgent.notice.minNoticeHours
   );
-
-  type Scored = { c: Candidate; score: number; homeStatus: SharedStatus; partnerStatus: SharedStatus };
-  const scored: Scored[] = [];
-  for (const c of noticeFiltered) {
-    const homeLocal = statusAt(homeAgent, c.day, c.start, c.end);
-    const partnerLocal = statusAt(partnerAgent, c.day, c.start, c.end);
-    const homeShared = toSharedStatus(homeAgent.kind, homeLocal.status);
-    const partnerShared = toSharedStatus(partnerAgent.kind, partnerLocal.status);
-    if (homeShared === "hard-busy" || partnerShared === "hard-busy") continue;
-    const score = (homeShared === "soft-busy" ? 1 : 0) + (partnerShared === "soft-busy" ? 1 : 0);
-    scored.push({ c, score, homeStatus: homeShared, partnerStatus: partnerShared });
-  }
-  scored.sort((a, b) => a.score - b.score);
+  const scored = scoreCandidates(scenario, homeAgent, partnerAgent, noticeFiltered, false);
 
   transcript.push({
     round,
@@ -303,8 +151,8 @@ export async function runWithIoc(scenario: NegotiationScenario, policy: DataShar
   return session;
 }
 
-function flag(b: boolean): string {
-  return b ? "allowed" : "blocked";
+function label(agent: NegotiationScenario["homeAgent"]): string {
+  return `${agent.personName} (${agent.kind === "webex" ? "Webex agent" : "Copilot agent"})`;
 }
 
 function hashCode(s: string): number {
@@ -313,14 +161,20 @@ function hashCode(s: string): number {
   return h;
 }
 
-function finalize(
+export function finalize(
   scenario: NegotiationScenario,
   startedAt: Date,
   round: number,
   transcript: TranscriptMessage[],
   status: "agreed" | "escalated",
   intent: NegotiationScenario["intent"] | undefined,
-  proposedSlot?: ProposedSlot
+  proposedSlot?: ProposedSlot,
+  /**
+   * Override for `rounds`. The standard single-pass CSP flow always reports
+   * 1 (see below); demos that layer real back-and-forth on top - the loop +
+   * mediation demo, for instance - pass the actual round count here instead.
+   */
+  roundsOverride?: number
 ): NegotiationSession {
   const endedAt = new Date(startedAt.getTime() + transcript.length * 20_000);
   return {
@@ -334,8 +188,8 @@ function finalize(
     transcript,
     // CSP mode reasons over both calendars in a single joint pass, never a
     // serial back-and-forth - so "rounds" of negotiation is always 1, however
-    // many protocol stages it took to get there.
-    rounds: 1,
+    // many protocol stages it took to get there - unless a demo overrides it.
+    rounds: roundsOverride ?? 1,
     stagesCompleted: round,
     startedAt: startedAt.toISOString(),
     endedAt: endedAt.toISOString(),

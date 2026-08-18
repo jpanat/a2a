@@ -81,16 +81,58 @@ export type NegotiationStage =
   | "joint-negotiation"
   | "resolution"
   | "baseline-exchange"
-  | "escalation";
+  | "escalation"
+  /** A cognition engine pass checking the candidate slot against the original shared intent object. */
+  | "cognition-check"
+  /** A utility/concession-based mediator stepping in after a detected deadlock. */
+  | "negmas-mediation";
 
 export interface TranscriptMessage {
   round: number;
   stage: NegotiationStage;
   from: "webex-agent" | "copilot-agent" | "system";
-  kind: "proposal" | "rejection" | "counter-proposal" | "info" | "mapping" | "intent" | "resolution" | "escalation";
+  kind:
+    | "proposal"
+    | "rejection"
+    | "counter-proposal"
+    | "info"
+    | "mapping"
+    | "intent"
+    | "resolution"
+    | "escalation"
+    /** The cognition engine found the candidate slot doesn't match the shared intent (wrong window, wrong duration, ...). */
+    | "drift"
+    /** The cognition engine (or a mediator) corrected course back to an intent-compliant slot. */
+    | "realignment"
+    /** Two (or more) rigid proposals have repeated without progress - a genuine non-convergent cycle. */
+    | "loop-detected"
+    /** A mediator's scored offer for one candidate slot, shown with the utility numbers behind it. */
+    | "mediation-offer"
+    /** A mediator-brokered agreement once utilities clear the current concession threshold. */
+    | "mediation-accept";
   text: string;
   /** Optional structured payload for UI rendering (e.g. the proposed slot). */
   data?: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
+ * An ACL-style ("Agent Communication Language") view of one transcript
+ * message - the same event, reframed as an explicit protocol frame with a
+ * performative, sender/receiver, and a machine-readable content payload.
+ * This is a display-layer projection computed from TranscriptMessage, not a
+ * second source of truth - see engine/protocol.ts.
+ */
+export interface ProtocolFrame {
+  seq: number;
+  performative: string;
+  sender: TranscriptMessage["from"];
+  receiver: TranscriptMessage["from"] | "broadcast";
+  protocol: string;
+  round: number;
+  stage: NegotiationStage;
+  content: Record<string, unknown>;
+  text: string;
   timestamp: string;
 }
 
@@ -172,4 +214,6 @@ export interface NegotiationSession {
     copilotEventId: string;
     joinLink: string;
   };
+  /** ACL-style protocol view of `transcript`, computed once and attached for the Protocol view's UI. */
+  protocolFrames?: ProtocolFrame[];
 }

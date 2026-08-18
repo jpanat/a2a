@@ -66,7 +66,7 @@ The LLM is only ever used to narrate a scheduling decision that has already
 been made deterministically (see [Simulated vs. real](#simulated-vs-real)
 below) - it never decides which slot to book.
 
-## The five views
+## The six views
 
 - **Inbox** (`#/end-user`) - a mock Outlook thread with the scheduling ask.
   "Add Webex meeting" is a stub (this demo doesn't build a real
@@ -87,6 +87,10 @@ below) - it never decides which slot to book.
   "success" was actually an ungoverned or policy-violating booking); and the
   full side-by-side transcripts, colored for a quick "this one worked, this
   one didn't" read from across a room.
+- **Live Protocol** (`#/protocol`) - the actual agent-to-agent protocol trace,
+  streamed into the page rather than dumped all at once, plus three dynamics
+  that don't show up in the other views. See
+  [Live Protocol: four dynamics](#live-protocol-four-dynamics) below.
 - **Conflict Lab** (`#/lab`) - a live editor, not another fixture. Load any
   preset as a starting point (or start blank), then edit either agent's
   calendar row by row (add/remove busy, tentative-hold/focus-time, or free
@@ -153,6 +157,62 @@ urgent same-day ask that violates one side's notice-period policy escalates
 at stage 4 even after ontology and intent are fully grounded. Roughly a
 third of the seeded audit log is escalations, not five-star successes.
 
+## Live Protocol: four dynamics
+
+The Live Protocol view (`#/protocol`) is Webex-agent-vs-Copilot-agent only
+for now (it rejects the intra-org scenario). Every negotiation here is also
+reprojected into an explicit **A2A protocol trace** - `server/src/engine/
+protocol.ts` maps each transcript message onto an ACL-style frame
+(`{ seq, performative, sender, receiver, protocol, content }`, performatives
+like `PROPOSE` / `REJECT_PROPOSAL` / `CONFIRM` / `INFORM_ONTOLOGY` /
+`FAILURE`) instead of just prose, and the UI streams those frames into the
+page one at a time rather than dumping the whole thing at once, so it reads
+like a live log. All four tabs run the real engine on request - nothing is
+pre-recorded.
+
+1. **Live A2A Trace** - the standard five-stage CSP negotiation (or the
+   without-IoC baseline, via the toggle), shown as protocol frames.
+2. **Drift & Correction** - the joint-negotiation pass here is deliberately
+   "smarter but careless": it searches the *whole business week* for the
+   best-scoring calendar fit instead of only the windows the humans actually
+   stated (an honest failure mode - an agent optimizing a metric while
+   quietly widening its own scope, not a calendar bug). A **cognition
+   engine** stage then checks whatever it found against the original shared
+   intent object; if it drifted outside the stated windows, it flags the
+   drift explicitly and re-grounds to a compliant candidate before
+   resolving. On the seeded Outshift/Microsoft scenario this reliably drifts
+   to Monday morning (nobody defined Monday, so it defaults to fully free)
+   before correcting back to the same Tuesday slot the standard flow finds -
+   see `server/src/engine/cognitionEngine.ts`.
+3. **Endless Loop → NegMAS** - both agents ground the same shared intent
+   (discovery/ontology/intent all run normally), but the negotiation
+   *strategy* is deliberately rigid: each side always re-offers its own
+   single favorite slot instead of reasoning jointly. With two favorites
+   that are each infeasible for the other side, that oscillates forever on
+   its own - a loop detector catches the repeat and hands off to a
+   lightweight, hand-rolled concession mediator modeled on NegMAS's
+   alternating-offers protocol (per-candidate utilities, a monotonically
+   conceding acceptance threshold across rounds). **This is a simulation of
+   the idea, not the real NegMAS Python library** - a Node/TS app can't
+   invoke it directly - and it's labeled as such everywhere it appears. See
+   `server/src/engine/negmasMediator.ts`.
+4. **T+1 Emergent Conflict** - runs the standard negotiation to agreement at
+   T0, then clones the scenario and injects one new hard-busy calendar block
+   for the requesting agent landing exactly on the slot just agreed to
+   ("Sudden: urgent escalation call") - something neither agent could have
+   known about at negotiation time - and re-runs the same engine at T+1. On
+   the seeded scenario this automatically finds the next-best compliant slot
+   30 minutes later; if nothing were left, it would escalate instead of
+   silently keeping a now-invalid booking. See
+   `server/src/engine/emergentConflict.ts`.
+
+All three demo engines share the same candidate-scoring math as the standard
+CSP flow (`server/src/engine/jointReasoning.ts`) and the same
+discovery/ontology/intent stage builders (`server/src/engine/stages.ts`) - so
+"drift", "loop", and "emergent conflict" aren't three different fake
+scripts, they're the same reasoning primitives run with a different search
+strategy or a mutated calendar.
+
 ## Seed data
 
 `server/src/data/` seeds:
@@ -180,13 +240,19 @@ third of the seeded audit log is escalations, not five-star successes.
 
 ```
 server/src/
-  types/domain.ts       shared types (Org, AgentProfile, NegotiationSession, ...)
+  types/domain.ts       shared types (Org, AgentProfile, NegotiationSession, ProtocolFrame, ...)
   engine/
     ontology.ts          local-vocab -> shared-schema mapping
     calendarUtil.ts       slot/date helpers
+    jointReasoning.ts      shared candidate building + scoring (used by all four negotiation paths)
+    stages.ts              shared discovery/ontology/intent stage builders
     reasoner.ts            pluggable explanation generator (rule-based | LLM)
     withoutIoc.ts          baseline negotiation
     withIoc.ts             five-stage CSP negotiation
+    cognitionEngine.ts     drift-detection + realignment demo
+    negmasMediator.ts      endless-loop detection + concession-mediator demo
+    emergentConflict.ts    T0/T+1 sudden-calendar-event demo
+    protocol.ts            transcript -> ACL-style protocol frame projection
     customScenario.ts      validates Conflict Lab input into a real NegotiationScenario
     index.ts              runNegotiation(scenario, mode, policy)
   data/
@@ -256,6 +322,38 @@ production:
   the trust channel between tenants is actually secured (mTLS, signed
   tokens, a broker service) - the diagram just names that decision, it
   doesn't make it.
+- **The A2A protocol frames** (`server/src/engine/protocol.ts`) are a
+  real, consistent ACL-style projection of the transcript - performative,
+  sender, receiver, machine-readable content - but the performative set and
+  the `csp-a2a/1.0` / `adhoc-a2a/0.1` protocol tags are this demo's own
+  invention, not literally the (still-evolving) real-world A2A or FIPA-ACL
+  specs. The point is to show the shape a real agent-communication protocol
+  takes, not to claim interoperability with any specific standard.
+- **The NegMAS mediator is simulated, not the real library.** NegMAS is an
+  actual Python package for automated multi-issue negotiation research.
+  This app is Node/TypeScript and can't invoke it directly, so
+  `server/src/engine/negmasMediator.ts` is a small hand-rolled concession
+  mediator built on the same idea NegMAS's alternating-offers protocol uses
+  (per-candidate utilities, a monotonically conceding acceptance threshold
+  across rounds) - not a wrapper around the actual library. A real
+  integration would shell out to (or run a sidecar for) Python NegMAS, or
+  reimplement one of its concrete negotiator strategies faithfully rather
+  than approximating the idea.
+- **The cognition engine's "drift"** (`server/src/engine/cognitionEngine.ts`)
+  is one concrete, deliberately-triggered failure mode - the search widening
+  past the stated windows - chosen because it's realistic and easy to
+  verify (the seeded scenario reliably drifts to Monday, which nobody
+  defined and so defaults to fully free). A production drift detector would
+  need to check far more dimensions (duration, attendee completeness,
+  urgency-vs-notice-period consistency, priority-tier mismatches) and would
+  likely run continuously rather than as a single post-hoc check.
+- **The T+1 emergent-conflict demo** re-runs the same deterministic engine
+  against a manually mutated calendar; it doesn't actually watch a live
+  calendar for changes. A production version would need a real
+  change-notification subscription (Graph webhooks / Watch API) to know a
+  new event landed at all, plus a policy for whether to re-negotiate
+  automatically, ask a human first, or only for changes above some priority
+  threshold.
 
 ## Design choices worth calling out
 

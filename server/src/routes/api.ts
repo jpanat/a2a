@@ -2,7 +2,11 @@ import { Router } from "express";
 import { resolveOrgName } from "../data/orgs";
 import { getScenario, scenarios } from "../data/scenarios";
 import { runNegotiation } from "../engine";
+import { runDriftDemo } from "../engine/cognitionEngine";
 import { buildCustomScenario } from "../engine/customScenario";
+import { runEmergentConflictDemo } from "../engine/emergentConflict";
+import { runLoopThenMediateDemo } from "../engine/negmasMediator";
+import { buildProtocolFrames } from "../engine/protocol";
 import { logTranscript } from "../logger";
 import {
   acceptNegotiation,
@@ -135,6 +139,78 @@ api.post("/compare/custom", async (req, res) => {
     res.json({ withoutIoc, withIoc, scenario: withOrgNames(scenario) });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// ---- Protocol demos: A2A trace, drift/cognition, endless-loop/mediation, T+1 emergent conflict ----
+// These are all Webex <-> Copilot only for now, so intra-org scenarios are rejected here.
+function requireCrossOrgScenario(id: string) {
+  const scenario = getScenario(id);
+  if (!scenario) {
+    const err: Error & { status?: number } = new Error("scenario not found");
+    err.status = 404;
+    throw err;
+  }
+  if (scenario.isIntraOrg) {
+    const err: Error & { status?: number } = new Error(
+      "This demo currently only supports Webex <-> Copilot (cross-company) scenarios, not intra-org ones."
+    );
+    err.status = 400;
+    throw err;
+  }
+  return scenario;
+}
+
+function handleDemoError(res: import("express").Response, err: unknown) {
+  const status = (err as { status?: number }).status ?? 400;
+  res.status(status).json({ error: (err as Error).message });
+}
+
+api.get("/demo/live/:scenarioId", async (req, res) => {
+  try {
+    const scenario = requireCrossOrgScenario(req.params.scenarioId);
+    const mode = req.query.mode === "without-ioc" ? "without-ioc" : "with-ioc";
+    const session = await runNegotiation(scenario, mode, getPolicy());
+    logTranscript(session);
+    res.json({ session });
+  } catch (err) {
+    handleDemoError(res, err);
+  }
+});
+
+api.get("/demo/drift/:scenarioId", async (req, res) => {
+  try {
+    const scenario = requireCrossOrgScenario(req.params.scenarioId);
+    const session = await runDriftDemo(scenario, getPolicy());
+    session.protocolFrames = buildProtocolFrames(session);
+    logTranscript(session);
+    res.json({ session });
+  } catch (err) {
+    handleDemoError(res, err);
+  }
+});
+
+api.get("/demo/loop/:scenarioId", async (req, res) => {
+  try {
+    const scenario = requireCrossOrgScenario(req.params.scenarioId);
+    const session = await runLoopThenMediateDemo(scenario, getPolicy());
+    session.protocolFrames = buildProtocolFrames(session);
+    logTranscript(session);
+    res.json({ session });
+  } catch (err) {
+    handleDemoError(res, err);
+  }
+});
+
+api.get("/demo/emergent/:scenarioId", async (req, res) => {
+  try {
+    const scenario = requireCrossOrgScenario(req.params.scenarioId);
+    const result = await runEmergentConflictDemo(scenario, getPolicy());
+    logTranscript(result.t0);
+    if (result.t1) logTranscript(result.t1);
+    res.json(result);
+  } catch (err) {
+    handleDemoError(res, err);
   }
 });
 
