@@ -3,6 +3,7 @@ import { resolveOrgName } from "../data/orgs";
 import { getScenario, scenarios } from "../data/scenarios";
 import { runNegotiation } from "../engine";
 import { buildCustomScenario } from "../engine/customScenario";
+import { logTranscript } from "../logger";
 import {
   acceptNegotiation,
   computeMetrics,
@@ -113,6 +114,8 @@ api.get("/compare/:scenarioId", async (req, res) => {
   ]);
   withoutIoc.id = `preview-${scenario.id}-without-ioc`;
   withIoc.id = `preview-${scenario.id}-with-ioc`;
+  logTranscript(withoutIoc);
+  logTranscript(withIoc);
   res.json({ withoutIoc, withIoc });
 });
 
@@ -127,6 +130,8 @@ api.post("/compare/custom", async (req, res) => {
     ]);
     withoutIoc.id = "custom-without-ioc";
     withIoc.id = "custom-with-ioc";
+    logTranscript(withoutIoc);
+    logTranscript(withIoc);
     res.json({ withoutIoc, withIoc, scenario: withOrgNames(scenario) });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

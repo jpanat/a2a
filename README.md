@@ -39,6 +39,18 @@ Then open **http://localhost:4173**. Everything runs from one process (a
 single Express server, in-memory state, no database, no build step for the
 frontend).
 
+**Watch the negotiation in the terminal too.** Every time a negotiation runs
+(clicking "Negotiate with agent" in the Inbox, picking a scenario in Compare,
+or hitting "Run comparison" in the Conflict Lab), the full agent-to-agent
+transcript is also printed to the same terminal running `npm run dev` -
+round/stage/speaker and the full message text, color-coded (cyan for
+ordinary exchange, magenta for ontology/intent grounding, green for
+resolution, red for escalation), finishing with the outcome and timing. The
+one-off startup seeding (12 historical negotiations) prints one summary line
+each instead of a full dump, so it doesn't flood the console. Turn transcript
+logging off with `LOG_TRANSCRIPTS=false npm run dev`; set `NO_COLOR=1` to
+keep the log but drop the ANSI colors.
+
 Optional: to have the "with-IoC" mode's resolution explanation written by a
 real LLM call instead of a template, set:
 
@@ -180,6 +192,7 @@ server/src/
   data/
     orgs.ts, scenarios.ts  seed data
   store.ts               in-memory state: orgs, policy, negotiation audit log
+  logger.ts              prints transcripts to the server console
   routes/api.ts          Express routes
   index.ts               server entrypoint
 public/

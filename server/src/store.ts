@@ -1,6 +1,7 @@
 import { DEFAULT_POLICY, orgs } from "./data/orgs";
 import { getScenario, scenarios } from "./data/scenarios";
 import { runNegotiation } from "./engine";
+import { logSummaryLine, logTranscript } from "./logger";
 import { DataSharingPolicy, NegotiationSession, Org } from "./types/domain";
 
 let policy: DataSharingPolicy = { ...DEFAULT_POLICY };
@@ -53,7 +54,9 @@ export async function negotiateLive(scenarioId: string, mode: NegotiationSession
   const scenario = getScenario(scenarioId);
   if (!scenario) throw new Error(`Unknown scenario: ${scenarioId}`);
   const session = await runNegotiation(scenario, mode, policy);
-  return addNegotiation(session);
+  const recorded = addNegotiation(session);
+  logTranscript(recorded);
+  return recorded;
 }
 
 export function acceptNegotiation(id: string): NegotiationSession {
@@ -110,10 +113,12 @@ export async function seedPastNegotiations(): Promise<void> {
     { scenarioId: "outshift-microsoft-api-review", mode: "without-ioc", daysAgo: 2 },
     { scenarioId: "outshift-microsoft-api-review", mode: "with-ioc", daysAgo: 1 },
   ];
+  console.log("Seeding historical negotiations...");
   for (const entry of plan) {
     const scenario = getScenario(entry.scenarioId);
     if (!scenario) continue;
     const session = await runNegotiation(scenario, entry.mode, policy);
+    logSummaryLine(session);
     addNegotiation(session, entry.daysAgo);
   }
 }
