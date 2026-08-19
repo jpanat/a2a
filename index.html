@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project Nova — Launch Readiness</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- Slim decorative rail, purely for Webex-app authenticity -->
+  <div class="rail">
+    <div class="rail-logo" title="Webex">W</div>
+    <div class="rail-icon active" title="Messaging">💬</div>
+    <div class="rail-icon" title="Calling">📞</div>
+    <div class="rail-icon" title="Meetings">📅</div>
+    <div class="rail-spacer"></div>
+    <div class="rail-avatar" title="You">JP</div>
+  </div>
+
+  <!-- Spaces list (decorative) -->
+  <div class="spaces">
+    <div class="spaces-header">
+      <span>Spaces</span>
+    </div>
+    <div class="space-search">🔍 Search</div>
+    <div class="space-item active">
+      <div class="space-avatar nova">PN</div>
+      <div class="space-meta">
+        <div class="space-name">Project Nova — Launch Readiness</div>
+        <div class="space-preview">LaunchAgent: Agent consensus reached…</div>
+      </div>
+      <div class="space-dot"></div>
+    </div>
+    <div class="space-item">
+      <div class="space-avatar" style="background:#8a8f98">QA</div>
+      <div class="space-meta">
+        <div class="space-name">Nova QA Sign-off</div>
+        <div class="space-preview">Priya: LGTM on regression suite</div>
+      </div>
+    </div>
+    <div class="space-item">
+      <div class="space-avatar" style="background:#8a8f98">CS</div>
+      <div class="space-meta">
+        <div class="space-name">Customer Success Sync</div>
+        <div class="space-preview">Marcus: renewal call moved to 2pm</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main conversation column -->
+  <div class="main">
+
+    <div class="space-header">
+      <div class="space-header-title">
+        <h1>Project Nova — Launch Readiness</h1>
+        <p class="subtitle">From Agent Communication to Agent Consensus</p>
+      </div>
+      <div class="participants" id="participants">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- Prototype control strip -->
+    <div class="control-strip">
+      <span class="control-label">PROTOTYPE CONTROLS</span>
+      <div class="control-buttons">
+        <button class="ctrl-btn" id="btn-reset" title="Reset the demo to the start">↺ Reset</button>
+        <button class="ctrl-btn ctrl-btn--mode active" id="btn-before" title="View ordinary A2A orchestration">BEFORE: A2A</button>
+        <button class="ctrl-btn ctrl-btn--mode ctrl-btn--negmas" id="btn-negmas" title="Switch to A2A + NegMAS">AFTER: A2A + NegMAS</button>
+        <span class="control-sep"></span>
+        <button class="ctrl-btn ctrl-btn--primary" id="btn-advance" title="Advance the story one beat">Advance ▸</button>
+        <button class="ctrl-btn" id="btn-autoplay" title="Auto-play the storyline">▶ Auto Play</button>
+        <span class="control-sep"></span>
+        <button class="ctrl-btn" id="btn-metrics" title="Open the metrics panel">📊 Metrics</button>
+        <button class="ctrl-btn" id="btn-architecture" title="Open the architecture view">🗺 Architecture</button>
+      </div>
+    </div>
+
+    <div class="pause-banner" id="pause-banner" hidden>
+      <span id="pause-text">Paused for discussion</span>
+      <button id="pause-continue">Continue</button>
+    </div>
+
+    <div class="messages" id="messages">
+      <!-- chat content injected by JS -->
+    </div>
+
+    <div class="quick-replies" id="quick-replies"></div>
+
+    <div class="composer">
+      <div class="composer-box">
+        <input type="text" id="composer-input" placeholder="Message Project Nova — Launch Readiness space…" />
+        <button id="composer-send">Send</button>
+      </div>
+      <div class="composer-hint">Try asking the agents a question, or use a suggestion above.</div>
+    </div>
+  </div>
+
+  <!-- Right intelligence panel -->
+  <div class="intel-panel">
+    <div class="intel-header">
+      <div class="intel-title">Collaboration Intelligence</div>
+      <div class="collab-state">
+        <span class="collab-state-label">Collaboration State</span>
+        <span class="collab-state-value" id="collab-state-value">Agents communicating</span>
+      </div>
+    </div>
+
+    <div class="stage-tracker" id="stage-tracker">
+      <!-- filled by JS -->
+    </div>
+
+    <div class="intel-body" id="intel-body">
+      <!-- dynamic contextual cards injected by JS -->
+    </div>
+
+    <div class="mini-metrics" id="mini-metrics">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+</div>
+
+<!-- Metrics modal -->
+<div class="modal-overlay" id="metrics-modal" hidden>
+  <div class="modal modal--wide">
+    <div class="modal-header">
+      <h2>Collaboration Metrics</h2>
+      <button class="modal-close" data-close="metrics-modal">✕</button>
+    </div>
+    <div class="modal-body" id="metrics-modal-body"></div>
+  </div>
+</div>
+
+<!-- Architecture modal -->
+<div class="modal-overlay" id="architecture-modal" hidden>
+  <div class="modal modal--wide">
+    <div class="modal-header">
+      <h2>Architecture View</h2>
+      <button class="modal-close" data-close="architecture-modal">✕</button>
+    </div>
+    <div class="modal-body" id="architecture-modal-body"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
