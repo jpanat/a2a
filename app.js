@@ -1,6 +1,6 @@
 /* ============================================================
    Project Nova — Launch Readiness
-   BEFORE (A2A orchestration) vs AFTER (A2A + NegMAS) prototype
+   BEFORE (A2A orchestration) vs AFTER (A2A + IoC-Collaboration) prototype
    ============================================================ */
 
 // ---------------------------------------------------------------
@@ -31,7 +31,7 @@ const AFTER_FINAL  = { messages: 19, rounds: 6, tokens: 13.8, cost: 0.18, dup: 2
 const PAUSE_MESSAGES = {
   disagreement: "4 agents just responded with 3 different answers to the same question. This is where ordinary orchestration starts to strain.",
   ontology: "Agents just converged on a shared definition of “Launch Readiness” — no orchestrator did the interpreting for them.",
-  context: "Two agents held contradictory facts, one of them 41 days stale. NegMAS resolves it by provenance — not by asking again.",
+  context: "Two agents held contradictory facts, one of them 41 days stale. IoC-Collaboration resolves it by provenance — not by asking again.",
   agreement: "This proposal was negotiated directly between agents, issue by issue — no orchestrator relay required.",
   metrics: "Same task, same four agents, same question. Very different cost and confidence profile.",
 };
@@ -387,7 +387,7 @@ function consensusWarningHtml() {
 function ctaCardHtml() {
   return `<p><b>Ordinary A2A got four agents talking. It didn't get them to agree.</b></p>
   <p>Give them a shared way to establish meaning, intent, facts, and reasoning.</p>
-  <button class="cta-big-btn" id="cta-enable-negmas">Enable NegMAS Collaboration</button>`;
+  <button class="cta-big-btn" id="cta-enable-negmas">Enable IoC-Collaboration</button>`;
 }
 
 // ---------------------------------------------------------------
@@ -712,7 +712,7 @@ const afterSteps = [
       setCollabState('Agents aligning…', true);
       addCentered(
         `<p><span class="bold">A2A allows the agents to communicate.</span></p>
-         <p class="dim">NegMAS helps them establish what they mean, what they want, what they know, and what they can agree to.</p>`,
+         <p class="dim">IoC-Collaboration helps them establish what they mean, what they want, what they know, and what they can agree to.</p>`,
         'tagline-card'
       );
       setAfter({ messages: 1, tokens: 0.5 });
@@ -723,7 +723,7 @@ const afterSteps = [
       addPhaseDivider(1, 'SHARED ONTOLOGY', 'Do we mean the same thing?');
       setStage('discovered', 'done');
       setStage('ontology', 'active');
-      setIntelBody(`<div class="intel-card"><h5>▸ Shared Ontology</h5><div class="desc">Each agent is publishing the concepts it reasons with, so NegMAS can negotiate a common mapping.</div></div>`);
+      setIntelBody(`<div class="intel-card"><h5>▸ Shared Ontology</h5><div class="desc">Each agent is publishing the concepts it reasons with, so IoC-Collaboration can negotiate a common mapping.</div></div>`);
     }
   },
   // 2: publish concepts
@@ -734,7 +734,7 @@ const afterSteps = [
   },
   // 3: negotiate -> PAUSE (ontology convergence)
   { run: async () => {
-      addSysNote('NegMAS negotiating concept mappings…');
+      addSysNote('IoC-Collaboration negotiating concept mappings…');
       await sleep(500);
       setIntelBody(`<div class="intel-card"><h5>▸ Ontology convergence</h5><div class="progress-track"><div class="progress-fill" style="width:100%"></div></div><div class="desc">7 semantic conflicts → 0</div></div>`);
       bumpAfter({ messages: 1, tokens: 0.8 });
@@ -967,7 +967,7 @@ function updateControlAvailability() {
 
 // advance() captures the mode + step index it started with, and a reset
 // "generation" token, so a concurrent mode switch (e.g. clicking "Enable
-// NegMAS" while a BEFORE step is still mid-animation) or a Reset fired
+// IoC-Collaboration" while a BEFORE step is still mid-animation) or a Reset fired
 // while a step is in flight can never make it write into the wrong
 // counter or clobber freshly-reset state.
 async function advance() {
@@ -1090,7 +1090,7 @@ function openMetrics() {
         <div class="m-row"><span>Time to decision</span><span class="v">${b.time || '—'}</span></div>
       </div>
       <div class="metrics-col after">
-        <h3>AFTER · A2A + NegMAS</h3>
+        <h3>AFTER · A2A + IoC-Collaboration</h3>
         <div class="m-row"><span>Messages</span><span class="v">${a.messages}</span></div>
         <div class="m-row"><span>Negotiation rounds</span><span class="v">${a.rounds !== undefined ? a.rounds : '—'}</span></div>
         <div class="m-row"><span>Tokens</span><span class="v">${(a.tokens || 0).toFixed(1)}K</span></div>
@@ -1195,7 +1195,7 @@ function renderArchitectureAfter() {
       <div class="arch-node" style="${archNodeStyle(p.sec.l, p.sec.t)};background:var(--sec)">Security<span class="sub">Agent</span></div>
       <div class="arch-node" style="${archNodeStyle(p.sup.l, p.sup.t)};background:var(--sup)">Support<span class="sub">Agent</span></div>
       <div class="arch-node" style="${archNodeStyle(p.prod.l, p.prod.t)};background:var(--prod)">Product<span class="sub">Agent</span></div>
-      <div class="arch-node center negmas" style="left:147px;top:132px">NegMAS Collaboration
+      <div class="arch-node center negmas" style="left:147px;top:132px">IoC-Collaboration
         <div class="arch-layers">
           <div class="arch-layer-chip">Shared Ontology</div>
           <div class="arch-layer-chip">Shared Intent</div>
@@ -1222,7 +1222,7 @@ function renderArchitectureModal() {
   body.innerHTML = `
     <div class="arch-tabs">
       <button class="arch-tab ${state.archTab === 'before' ? 'active' : ''}" data-tab="before">BEFORE: A2A Orchestration</button>
-      <button class="arch-tab ${state.archTab === 'after' ? 'active' : ''}" data-tab="after">AFTER: A2A + NegMAS</button>
+      <button class="arch-tab ${state.archTab === 'after' ? 'active' : ''}" data-tab="after">AFTER: A2A + IoC-Collaboration</button>
     </div>
     <div class="arch-diagram">${state.archTab === 'before' ? renderArchitectureBefore() : renderArchitectureAfter()}</div>
   `;
@@ -1252,7 +1252,7 @@ function showFinalScreen() {
         </div>
         <div class="final-eq">+</div>
         <div class="final-col">
-          <h3>NegMAS</h3>
+          <h3>IoC-Collaboration</h3>
           <ul>
             <li>Agents align meaning.</li>
             <li>Agents expose intent.</li>

@@ -502,7 +502,7 @@ html, body {
 .warn-card h4 { margin: 0 0 6px; color: var(--sec); font-size: 13px; }
 .warn-card .row { font-size: 12.5px; margin: 3px 0; display:flex; justify-content: space-between; gap: 10px;}
 
-/* CTA card (Enable NegMAS) */
+/* CTA card (Enable IoC-Collaboration) */
 .cta-card {
   align-self: center;
   text-align: center;
