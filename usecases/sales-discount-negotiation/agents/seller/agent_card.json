@@ -1,0 +1,21 @@
+{
+  "protocolVersion": "0.3",
+  "name": "Seller Agent",
+  "description": "Account executive for CloudSuite Pro. Negotiates discounts directly with buyer agents, escalating to the Sales Manager agent only when a deal needs more authority than the rep holds alone.",
+  "url": "http://127.0.0.1:9002",
+  "version": "1.0.0",
+  "capabilities": { "streaming": false },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "negotiate_round",
+      "name": "Negotiate one round",
+      "description": "Given the buyer's current offer for this round, returns the seller's counter-offer (or a matching offer if the buyer's ask is already acceptable).",
+      "tags": ["sales", "negotiation", "discount"],
+      "examples": [
+        "{\"action\": \"negotiate_round\", \"offer\": {\"round\": 0, \"sender\": \"buyer\", \"discountPct\": 30, \"unitPrice\": 350, \"conditions\": [\"250 seats\"]}}"
+      ]
+    }
+  ]
+}

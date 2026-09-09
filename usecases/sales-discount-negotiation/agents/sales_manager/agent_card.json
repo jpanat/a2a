@@ -1,0 +1,21 @@
+{
+  "protocolVersion": "0.3",
+  "name": "Sales Manager Agent",
+  "description": "Deal-desk approver for CloudSuite Pro renewals. Grants discount authority beyond a sales rep's own ceiling, based on deal size, contract term, and margin policy.",
+  "url": "http://127.0.0.1:9003",
+  "version": "1.0.0",
+  "capabilities": { "streaming": false },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "authority_check",
+      "name": "Discount authority check",
+      "description": "Given a requested discount percentage and deal context (seats, term, current round), returns a granted discount ceiling and the rationale behind it. May grant less than requested.",
+      "tags": ["sales", "approval", "discount"],
+      "examples": [
+        "{\"action\": \"authority_request\", \"requestedPct\": 28, \"dealContext\": {\"seats\": 250, \"term_years\": 3}}"
+      ]
+    }
+  ]
+}
