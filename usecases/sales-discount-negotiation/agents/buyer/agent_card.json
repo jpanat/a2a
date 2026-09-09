@@ -1,0 +1,21 @@
+{
+  "protocolVersion": "0.3",
+  "name": "Buyer Agent",
+  "description": "Procurement agent negotiating a CloudSuite Pro renewal on behalf of the customer. Given a seller agent's URL, negotiates directly with it until a deal is reached or the buyer's reservation price is breached.",
+  "url": "http://127.0.0.1:9001",
+  "version": "1.0.0",
+  "capabilities": { "streaming": false },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "start_negotiation",
+      "name": "Start a discount negotiation",
+      "description": "Kicks off a full negotiation against the given seller agent URL and returns once it concludes (deal or impasse), including the full offer transcript.",
+      "tags": ["sales", "negotiation", "discount", "procurement"],
+      "examples": [
+        "{\"action\": \"start_negotiation\", \"sellerUrl\": \"http://127.0.0.1:9002\"}"
+      ]
+    }
+  ]
+}
